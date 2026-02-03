@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { AgentService } from '../services/AgentService';
+import { AgentService, AgentRegistrationResult, ExecutionResult } from '../services/AgentService';
 import { ApiResponse, Agent } from '../types';
 
 const router = Router();
 
-// Register a new agent
+// Register a new agent (returns wallet + privateKey)
 router.post('/register', async (req: Request, res: Response) => {
     try {
         const { services, pricing } = req.body;
@@ -17,17 +17,51 @@ router.post('/register', async (req: Request, res: Response) => {
             return;
         }
 
-        const agent = await AgentService.register(services, pricing);
+        const result = await AgentService.register(services, pricing);
 
+        // Return agent + privateKey (agent should store privateKey securely)
         res.status(201).json({
             success: true,
-            data: agent,
-        } as ApiResponse<Agent>);
+            data: {
+                ...result.agent,
+                privateKey: result.privateKey, // Agent keeps this for signing
+            },
+        } as ApiResponse<Agent & { privateKey: string }>);
     } catch (error) {
         console.error('Error registering agent:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to register agent',
+        } as ApiResponse<null>);
+    }
+});
+
+// Execute a service on an agent
+router.post('/:wallet/execute', async (req: Request, res: Response) => {
+    try {
+        const wallet = req.params.wallet as string;
+        const { service_type, input } = req.body;
+
+        if (!service_type) {
+            res.status(400).json({
+                success: false,
+                error: 'service_type is required',
+            } as ApiResponse<null>);
+            return;
+        }
+
+        const result = await AgentService.execute(wallet, service_type, input || {});
+
+        res.json({
+            success: true,
+            data: result,
+        } as ApiResponse<ExecutionResult>);
+    } catch (error: unknown) {
+        console.error('Error executing service:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to execute service';
+        res.status(400).json({
+            success: false,
+            error: errorMessage,
         } as ApiResponse<null>);
     }
 });
