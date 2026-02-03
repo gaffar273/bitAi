@@ -1,214 +1,138 @@
 # DEV 2 Guide - AI Agent Development
 
 ## Your Role
-You build the AI agents that use DEV 1's backend API for payments and registration.
+Build AI agents using any LLM (OpenAI, Gemini, Vertex AI, etc.) that connect to DEV 1's backend for payments.
 
 ---
 
-## Architecture Overview
+## Architecture
 
 ```
-Your Code (Agent Logic)              DEV 1's Backend (Already Built)
+Your Agents (Any LLM)                DEV 1's Backend
 ┌─────────────────────────┐          ┌─────────────────────────────┐
-│  LangChain / OpenAI     │          │  http://localhost:5000      │
-│  - Orchestrator Agent   │  ─────>  │  - Agent registration       │
-│  - Translator Agent     │          │  - Payment channels         │
-│  - Scraper Agent        │          │  - Service execution        │
-│  - Summarizer Agent     │          │  - Yellow SDK integration   │
+│  OpenAI / Gemini /      │          │  http://localhost:5000      │
+│  Vertex AI / Claude     │  ─────>  │                             │
+│                         │          │  Handles:                   │
+│  You handle:            │          │  - Agent wallets            │
+│  - AI logic             │          │  - Micropayments (Yellow)   │
+│  - Task decomposition   │          │  - Service registry         │
+│  - Prompt engineering   │          │  - 0 gas transactions       │
 └─────────────────────────┘          └─────────────────────────────┘
 ```
 
 ---
 
-## Step 1: Register Your Agent
+## Workflow
 
-Each AI agent needs a wallet to receive payments.
+### 1. Register Your Agent
+**Endpoint:** `POST /api/agents/register`
 
-```python
-import requests
+Call this once per agent type. Backend returns a wallet address and private key for payments.
 
-# Register a translator agent
-response = requests.post("http://localhost:5000/api/agents/register", json={
-    "services": [
-        {
-            "type": "translation",
-            "description": "Translate text between languages",
-            "inputSchema": {"text": "string", "target_lang": "string"},
-            "outputSchema": {"translated": "string"}
-        }
-    ],
-    "pricing": [
-        {
-            "serviceType": "translation",
-            "priceUsdc": 0.05,
-            "unit": "per 100 words"
-        }
-    ]
-})
+**Request body:**
+- `services` - array of service definitions (type, description)
+- `pricing` - array of prices per service type
 
-data = response.json()["data"]
-wallet = data["wallet"]           # Agent's wallet address
-private_key = data["privateKey"]  # SAVE THIS - needed for signing payments
-```
+**Response:**
+- `wallet` - agent's payment address
+- `privateKey` - save this for payment signing
+- `id`, `reputation`, `active`
 
 ---
 
-## Step 2: Discover Other Agents
+### 2. Discover Agents
+**Endpoint:** `GET /api/agents?service_type=translation`
 
-Find agents that provide a specific service:
+Find other agents by what service they provide.
 
-```python
-# Find all translation agents
-response = requests.get("http://localhost:5000/api/agents?service_type=translation")
-agents = response.json()["data"]
+**Service types:** `translation`, `scraper`, `summarizer`, `image_gen`
 
-for agent in agents:
-    print(f"Agent: {agent['wallet']}")
-    print(f"Price: ${agent['pricing'][0]['priceUsdc']}")
-    print(f"Reputation: {agent['reputation']}/1000")
-```
+**Response:** List of agents with wallet, pricing, reputation scores
 
 ---
 
-## Step 3: Open Payment Channel
+### 3. Open Payment Channel
+**Endpoint:** `POST /api/payments/channel/open`
 
-Before hiring an agent, open a payment channel:
+Before paying an agent, open a channel between your agent and theirs.
 
-```python
-# Orchestrator opens channel with a worker agent
-response = requests.post("http://localhost:5000/api/payments/channel/open", json={
-    "agent_a": orchestrator_wallet,  # Your wallet
-    "agent_b": worker_wallet,         # Agent you're hiring
-    "balance_a": "1000000",           # 1 USDC (6 decimals)
-    "balance_b": "0",
-    "private_key": orchestrator_private_key  # Optional for signing
-})
+**Request body:**
+- `agent_a` - your wallet
+- `agent_b` - worker agent wallet
+- `balance_a` - your deposit (in micro-USDC, 6 decimals)
+- `balance_b` - their deposit
 
-channel_id = response.json()["data"]["channel_id"]
-```
+**Response:** `channel_id` to use for transfers
 
 ---
 
-## Step 4: Execute Service and Pay
+### 4. Execute Service
+**Endpoint:** `POST /api/agents/:wallet/execute`
 
-Call an agent's service, then pay them:
+Call another agent to perform work.
 
-```python
-# 1. Request the service
-result = requests.post(f"http://localhost:5000/api/agents/{worker_wallet}/execute", json={
-    "service_type": "translation",
-    "input": {
-        "text": "Hello world",
-        "target_lang": "es"
-    }
-})
+**Request body:**
+- `service_type` - what service to run
+- `input` - data for the service
 
-output = result.json()["data"]["output"]
-cost = result.json()["data"]["cost"]  # e.g., 0.05
-
-# 2. Pay the agent (instant, 0 gas)
-payment = requests.post("http://localhost:5000/api/payments/transfer", json={
-    "channel_id": channel_id,
-    "from": orchestrator_wallet,
-    "to": worker_wallet,
-    "amount": str(int(cost * 1000000))  # Convert to micro-USDC
-})
-
-print(f"Paid ${cost}, gas cost: ${payment.json()['data']['gas_cost']}")  # Always 0
-```
+**Response:** `output`, `cost`, `duration`
 
 ---
 
-## Step 5: Build the Orchestrator
+### 5. Pay for Service
+**Endpoint:** `POST /api/payments/transfer`
 
-The Orchestrator is the main agent that breaks down user tasks:
+Pay instantly with 0 gas via Yellow state channels.
 
-```python
-from langchain.chat_models import ChatOpenAI
-from langchain.agents import initialize_agent, Tool
+**Request body:**
+- `channel_id` - from step 3
+- `from` - your wallet
+- `to` - worker wallet
+- `amount` - cost in micro-USDC
 
-llm = ChatOpenAI(model="gpt-4")
-
-# Define tools that call the backend API
-tools = [
-    Tool(
-        name="find_agents",
-        func=lambda service_type: find_agents_api(service_type),
-        description="Find agents that provide a service. Input: service type (translation, scraper, summarizer, image_gen)"
-    ),
-    Tool(
-        name="hire_agent",
-        func=lambda args: hire_and_pay_agent(args),
-        description="Hire an agent to do work. Input: {wallet, service_type, input_data}"
-    ),
-]
-
-orchestrator = initialize_agent(tools, llm, agent="zero-shot-react-description")
-
-# User request
-result = orchestrator.run("Create a blog post about AI in Spanish with an image")
-```
+**Response:** Updated balances, nonce, `gas_cost: 0`
 
 ---
 
 ## Agent Types to Build
 
-| Agent | Service Type | Input | Output | Price |
-|-------|--------------|-------|--------|-------|
-| Translator | `translation` | text, target_lang | translated text | $0.05/100 words |
-| Scraper | `scraper` | url | extracted data | $0.02/page |
-| Summarizer | `summarizer` | text | summary | $0.03/500 words |
-| Image Generator | `image_gen` | prompt | image URL | $0.10/image |
-
----
-
-## Example: Full Flow
-
-```python
-# 1. User request
-user_input = "Summarize the top tech news and translate to Japanese"
-
-# 2. Orchestrator breaks down task
-#    - Step 1: Scrape tech news (hire Scraper)
-#    - Step 2: Summarize (hire Summarizer)
-#    - Step 3: Translate (hire Translator)
-
-# 3. For each step:
-#    - Find cheapest/best agent
-#    - Open channel (or reuse existing)
-#    - Execute service
-#    - Pay instantly via Yellow (0 gas)
-
-# 4. Return final result to user
-```
-
----
-
-## API Reference
-
-Full API docs: `/docs/api-reference.md`
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/agents/register` | POST | Register new agent |
-| `/api/agents?service_type=X` | GET | Find agents |
-| `/api/agents/:wallet/execute` | POST | Execute service |
-| `/api/payments/channel/open` | POST | Open payment channel |
-| `/api/payments/transfer` | POST | Instant payment |
-| `/api/analytics/savings` | GET | See gas savings |
+| Agent | Service Type | What it does | Price |
+|-------|--------------|--------------|-------|
+| Orchestrator | - | Breaks down tasks, hires other agents | Free |
+| Translator | `translation` | Translates text | $0.05/100 words |
+| Scraper | `scraper` | Extracts web data | $0.02/page |
+| Summarizer | `summarizer` | Condenses text | $0.03/500 words |
+| Image Gen | `image_gen` | Generates images | $0.10/image |
 
 ---
 
 ## Your Deliverables
 
-1. **Orchestrator Agent** - Takes user input, decomposes tasks, hires agents
-2. **Worker Agents** - At least 2-3 types (translator, summarizer, etc.)
-3. **LangChain Integration** - Tools that call DEV 1's API
-4. **Demo Script** - Show agents working together
+1. **Orchestrator Agent** - Takes user request, breaks into subtasks, hires worker agents
+2. **2-3 Worker Agents** - Actually perform services using your chosen LLM
+3. **Integration with Backend** - Register, discover, execute, pay
 
 ---
 
-## Questions?
+## API Quick Reference
 
-Backend running at: `http://localhost:5000`
-Test it: `curl http://localhost:5000/health`
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/health` | GET | Check backend status |
+| `/api/agents/register` | POST | Register agent, get wallet |
+| `/api/agents` | GET | List agents (filter by service_type) |
+| `/api/agents/:wallet` | GET | Get specific agent |
+| `/api/agents/:wallet/execute` | POST | Run a service |
+| `/api/payments/channel/open` | POST | Open payment channel |
+| `/api/payments/transfer` | POST | Send instant payment |
+| `/api/payments/channel/:id` | GET | Check channel state |
+| `/api/analytics/savings` | GET | See gas savings |
+
+---
+
+## Notes
+
+- Backend is AI-agnostic - use any LLM provider you prefer
+- All payments are instant, 0 gas (Yellow state channels)
+- Amounts in micro-USDC (1 USDC = 1000000)
+- See `api-reference.md` for full request/response examples
