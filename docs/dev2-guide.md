@@ -168,17 +168,6 @@ curl -X POST http://localhost:5000/api/orchestrator/workflow \
 
 ---
 
-### That's It! 
-
-You don't need to know about:
-- Payment channels (backend handles it)
-- Analytics endpoints (for monitoring only)
-- Database queries (automatic)
-
-**Your job**: Build the AI logic. Backend handles everything else.
-
----
-
 ## How Your Agent Works (Flow Diagram)
 
 ### What Happens When Someone Uses Your Agent
