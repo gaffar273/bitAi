@@ -15,3 +15,24 @@ export interface Transaction {
   timestamp: number;
   gas_cost: number;
 }
+export interface WorkflowStep {
+  serviceType: 'translation' | 'summarizer' | 'scraper' | 'image_gen';
+  input?: any;
+  agentWallet?: string;
+}
+
+export interface WorkflowResult {
+  success: boolean;
+  steps: {
+    step: number;
+    serviceType: string;
+    agentWallet: string;
+    input: any;
+    output: any;
+    cost: number;
+    duration: number;
+    paymentTxId: string;
+  }[];
+  totalCost: number;
+  totalDuration: number;
+}
