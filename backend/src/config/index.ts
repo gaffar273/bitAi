@@ -12,4 +12,14 @@ export const config = {
 
     // Wallet
     privateKey: process.env.PRIVATE_KEY || '',
+
+    // Database (Neon Serverless or PostgreSQL)
+    databaseUrl: process.env.DATABASE_URL || '',
+    dbHost: process.env.DB_HOST || 'localhost',
+    dbPort: parseInt(process.env.DB_PORT || '5432', 10),
+    dbName: process.env.DB_NAME || 'agentswarm',
+    dbUser: process.env.DB_USER || 'postgres',
+    dbPassword: process.env.DB_PASSWORD || '',
+    enableDatabase: process.env.ENABLE_DATABASE === 'true' || !!process.env.DATABASE_URL,
 };
+

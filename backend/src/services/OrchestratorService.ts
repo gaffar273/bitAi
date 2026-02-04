@@ -1,0 +1,192 @@
+import { AgentService } from './AgentService';
+import { PaymentService } from './PaymentService';
+import { TransactionLogger } from './TransactionLogger';
+
+// Workflow step definition
+export interface WorkflowStep {
+    serviceType: string;
+    input: unknown;
+    agentWallet?: string; // Optional: specify agent, otherwise auto-select cheapest
+}
+
+// Workflow execution result
+export interface WorkflowResult {
+    success: boolean;
+    steps: StepResult[];
+    totalCost: number;
+    totalDuration: number;
+    error?: string;
+}
+
+export interface StepResult {
+    step: number;
+    serviceType: string;
+    agentWallet: string;
+    input: unknown;
+    output: unknown;
+    cost: number;
+    duration: number;
+    paymentTxId?: string;
+}
+
+export class OrchestratorService {
+    /**
+     * Execute a multi-step workflow with automatic agent selection and payment routing
+     * @param orchestratorWallet - Wallet of the orchestrator (pays for all steps)
+     * @param workflowSteps - Array of steps to execute
+     * @param channelId - Optional: Pre-opened payment channel
+     */
+    static async executeWorkflow(
+        orchestratorWallet: string,
+        workflowSteps: WorkflowStep[],
+        channelId?: string
+    ): Promise<WorkflowResult> {
+        const results: StepResult[] = [];
+        let totalCost = 0;
+        let totalDuration = 0;
+        const startTime = Date.now();
+
+        console.log(`\n[Orchestrator] Starting workflow with ${workflowSteps.length} steps...`);
+        console.log(`[Orchestrator] Payer: ${orchestratorWallet.slice(0, 10)}...`);
+
+        try {
+            let previousOutput: unknown = null;
+
+            for (let i = 0; i < workflowSteps.length; i++) {
+                const step = workflowSteps[i];
+                const stepStartTime = Date.now();
+
+                console.log(`\n[Orchestrator] Step ${i + 1}/${workflowSteps.length}: ${step.serviceType}`);
+
+                // 1. Select agent (specified or cheapest available)
+                let selectedAgent;
+                if (step.agentWallet) {
+                    selectedAgent = await AgentService.getByWallet(step.agentWallet);
+                    if (!selectedAgent) {
+                        throw new Error(`Agent ${step.agentWallet} not found`);
+                    }
+                } else {
+                    // Auto-select cheapest agent for this service type
+                    const candidates = await AgentService.getByServiceType(step.serviceType);
+                    if (candidates.length === 0) {
+                        throw new Error(`No agents available for ${step.serviceType}`);
+                    }
+
+                    // Sort by price (ascending) and reputation (descending)
+                    selectedAgent = candidates.sort((a, b) => {
+                        const priceA = a.pricing.find(p => p.serviceType === step.serviceType)?.priceUsdc || Infinity;
+                        const priceB = b.pricing.find(p => p.serviceType === step.serviceType)?.priceUsdc || Infinity;
+                        if (priceA !== priceB) return priceA - priceB;
+                        return b.reputation - a.reputation; // Tie-break by reputation
+                    })[0];
+                }
+
+                console.log(`[Orchestrator] Selected agent: ${selectedAgent.wallet.slice(0, 10)}...`);
+
+                // 2. Prepare input (use previous output if this is a chained step)
+                const stepInput = i === 0 ? step.input : previousOutput;
+
+                // 3. Execute service
+                const execution = await AgentService.execute(
+                    selectedAgent.wallet,
+                    step.serviceType,
+                    stepInput
+                );
+
+                // 4. Process payment
+                let paymentTxId: string | undefined;
+                if (execution.cost > 0) {
+                    // For demo: simulate instant Yellow payment
+                    const payment = await PaymentService.transfer(
+                        channelId || 'default-channel',
+                        orchestratorWallet,
+                        selectedAgent.wallet,
+                        execution.cost
+                    );
+                    paymentTxId = payment.transaction.id;
+                    console.log(`[Orchestrator] Payment: $${execution.cost} → ${selectedAgent.wallet.slice(0, 10)}... (gas: $0)`);
+                }
+
+                // 5. Update reputation (success)
+                await AgentService.updateReputation(selectedAgent.wallet, 10);
+
+                const stepDuration = Date.now() - stepStartTime;
+                totalCost += execution.cost;
+                totalDuration += stepDuration;
+
+                // 6. Store result
+                results.push({
+                    step: i + 1,
+                    serviceType: step.serviceType,
+                    agentWallet: selectedAgent.wallet,
+                    input: stepInput,
+                    output: execution.output,
+                    cost: execution.cost,
+                    duration: stepDuration,
+                    paymentTxId,
+                });
+
+                previousOutput = execution.output;
+            }
+
+            const workflowDuration = Date.now() - startTime;
+            console.log(`\n[Orchestrator] ✓ Workflow completed in ${workflowDuration}ms`);
+            console.log(`[Orchestrator] Total cost: $${totalCost} | Steps: ${results.length}`);
+
+            // Log workflow to database
+            await TransactionLogger.logWorkflow(
+                {
+                    orchestratorWallet,
+                    totalSteps: workflowSteps.length,
+                    totalCost,
+                    totalDuration: workflowDuration,
+                    status: 'completed'
+                },
+                results.map(r => ({
+                    stepNumber: r.step,
+                    serviceType: r.serviceType,
+                    agentWallet: r.agentWallet,
+                    cost: r.cost,
+                    duration: r.duration,
+                    paymentTxId: r.paymentTxId
+                }))
+            );
+
+            return {
+                success: true,
+                steps: results,
+                totalCost,
+                totalDuration: workflowDuration,
+            };
+
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.error(`[Orchestrator] ✗ Workflow failed: ${errorMessage}`);
+
+            return {
+                success: false,
+                steps: results,
+                totalCost,
+                totalDuration: Date.now() - startTime,
+                error: errorMessage,
+            };
+        }
+    }
+
+    /**
+     * Get pricing comparison for a service across all available agents
+     */
+    static async getPricingComparison(serviceType: string) {
+        const agents = await AgentService.getByServiceType(serviceType);
+
+        return agents.map(agent => {
+            const pricing = agent.pricing.find(p => p.serviceType === serviceType);
+            return {
+                wallet: agent.wallet,
+                price: pricing?.priceUsdc || 0,
+                reputation: agent.reputation,
+                active: agent.active,
+            };
+        }).sort((a, b) => a.price - b.price);
+    }
+}

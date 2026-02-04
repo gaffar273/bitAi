@@ -19,10 +19,13 @@
   "type": "commonjs",
   "dependencies": {
     "@erc7824/nitrolite": "^0.5.3",
+    "@neondatabase/serverless": "^1.0.2",
+    "@types/pg": "^8.16.0",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "ethers": "^6.16.0",
     "express": "^5.2.1",
+    "pg": "^8.18.0",
     "ws": "^8.19.0"
   },
   "devDependencies": {

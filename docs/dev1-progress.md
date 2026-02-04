@@ -111,7 +111,45 @@ Response: 98% savings ($4.90 saved per transaction vs on-chain)
 ---
 
 ## Next Steps (Day 2)
-- [ ] Agent discovery by service type with pricing comparison
-- [ ] Multi-hop payment routing (Orchestrator -> Agent)
-- [ ] Transaction logging to database (PostgreSQL)
-- [ ] Reputation tracking based on successful jobs
+- [x] Multi-hop payment routing (Orchestrator -> Agent)
+  - Created `OrchestratorService.ts` with workflow execution
+  - Auto-selects cheapest agents by service type
+  - Chains multiple agents with automatic payment routing
+  - Added pricing comparison endpoint
+- [x] Transaction logging to database (PostgreSQL)
+  - Created `DatabaseService.ts` with schema setup
+  - Created `TransactionLogger.ts` for persistent logging
+  - Created `PaymentService.ts` wrapper with auto-logging
+  - Logs transactions and workflows automatically
+  - Graceful fallback when DB disabled
+- [x] Agent discovery by service type with pricing comparison
+  - Already implemented in `AgentService.getByServiceType()`
+  - Pricing comparison in `OrchestratorService.getPricingComparison()`
+  - GET `/api/agents?service_type=X` endpoint working
+- [x] Reputation tracking based on successful jobs
+  - Already implemented in `AgentService.updateReputation()`
+  - Auto-updated after successful workflow executions
+  - Range: 0-1000, starts at 500
+
+## Day 2 Summary
+
+All Day 2 backend tasks completed:
+- Multi-hop workflow execution with automatic agent selection
+- PostgreSQL database integration (optional, graceful fallback)
+- Transaction and workflow logging for analytics
+- Reputation system integrated into workflows
+- Pricing comparison for agent discovery
+
+**New Files Created:**
+- `OrchestratorService.ts` - Workflow execution engine
+- `DatabaseService.ts` - PostgreSQL schema and connection
+- `TransactionLogger.ts` - Persistent transaction logging
+- `PaymentService.ts` - Payment wrapper with auto-logging
+- `routes/orchestrator.ts` - Workflow API endpoints
+
+**New API Endpoints:**
+- `POST /api/orchestrator/workflow` - Execute multi-agent workflow
+- `GET /api/orchestrator/pricing/:serviceType` - Compare agent pricing
+
+
+
