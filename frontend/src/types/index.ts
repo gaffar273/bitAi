@@ -245,6 +245,141 @@ export interface HealthResponse {
 }
 
 // ============================================
+// Wallet Types
+// ============================================
+
+export interface WalletConnectRequest {
+  address: string;
+  signature: string;
+  message: string;
+}
+
+export interface WalletConnectResponse {
+  success: boolean;
+  data: {
+    address: string;
+    verified: boolean;
+    balances: {
+      eth: string;
+      usdc: string;
+    };
+  };
+}
+
+export interface WalletBalanceResponse {
+  success: boolean;
+  data: {
+    eth: string;
+    usdc: string;
+  };
+}
+
+export interface DepositRequest {
+  amount: number;
+  txHash: string;
+  token?: string;
+}
+
+export interface DepositResponse {
+  success: boolean;
+  data: {
+    depositId: string;
+    amount: number;
+    txHash: string;
+    confirmed: boolean;
+    timestamp: string;
+  };
+}
+
+export interface WalletChannel {
+  channelId: string;
+  partnerAddress: string;
+  balance: number;
+  status: string;
+}
+
+export interface WalletChannelsResponse {
+  success: boolean;
+  data: {
+    address: string;
+    channels: WalletChannel[];
+    count: number;
+  };
+}
+
+export interface FundChannelRequest {
+  amount: number;
+  partnerAddress?: string;
+  private_key?: string;
+}
+
+export interface FundChannelResponse {
+  success: boolean;
+  data: {
+    channelId: string;
+    balance: number;
+    status: string;
+  };
+}
+
+export interface WalletSettleRequest {
+  channel_id: string;
+  private_key: string;
+}
+
+export interface WalletSettleResponse {
+  success: boolean;
+  data: {
+    channel_id: string;
+    status: string;
+    tx_hash: string;
+    final_balances: Record<string, number>;
+    settlement_result?: any;
+    message: string;
+  };
+}
+
+export interface OnChainSettleResponse {
+  success: boolean;
+  data: {
+    tx_hash: string;
+    block_number: number;
+    gas_used: string;
+    explorer_url: string;
+    chain: string;
+    message: string;
+  };
+}
+
+export interface WalletDepositsResponse {
+  success: boolean;
+  data: {
+    address: string;
+    deposits: Array<{
+      id: string;
+      amount: number;
+      txHash: string;
+      confirmed: boolean;
+      timestamp: string;
+    }>;
+    count: number;
+  };
+}
+
+export interface WalletInfoResponse {
+  success: boolean;
+  data: {
+    address: string;
+    balances: {
+      eth: string;
+      usdc: string;
+    };
+    deposits: any[];
+    channels: any[];
+  };
+}
+
+// ============================================
 // Error Response Type
 // ============================================
 

@@ -27,6 +27,20 @@ import type {
   // Analytics
   GetSavingsResponse,
   GetTransactionsResponse,
+  // Wallet
+  WalletConnectRequest,
+  WalletConnectResponse,
+  WalletBalanceResponse,
+  DepositRequest,
+  DepositResponse,
+  WalletChannelsResponse,
+  FundChannelRequest,
+  FundChannelResponse,
+  WalletSettleRequest,
+  WalletSettleResponse,
+  OnChainSettleResponse,
+  WalletDepositsResponse,
+  WalletInfoResponse,
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
@@ -166,6 +180,85 @@ export const api = {
     axios.get(`${API_BASE}/api/analytics/transactions`, {
       params: { limit, offset },
     }),
+
+  // ============================================
+  // Wallet (User Wallet Integration)
+  // ============================================
+
+  /**
+   * Connect and verify wallet ownership via signature
+   * POST /api/wallet/connect
+   */
+  connectWallet: (data: WalletConnectRequest): Promise<AxiosResponse<WalletConnectResponse>> =>
+    axios.post(`${API_BASE}/api/wallet/connect`, data),
+
+  /**
+   * Get wallet balances (ETH & USDC)
+   * GET /api/wallet/:address/balance
+   */
+  getWalletBalance: (address: string): Promise<AxiosResponse<WalletBalanceResponse>> =>
+    axios.get(`${API_BASE}/api/wallet/${address}/balance`),
+
+  /**
+   * Record a USDC deposit
+   * POST /api/wallet/:address/deposit
+   */
+  recordDeposit: (
+    address: string,
+    data: DepositRequest
+  ): Promise<AxiosResponse<DepositResponse>> =>
+    axios.post(`${API_BASE}/api/wallet/${address}/deposit`, data),
+
+  /**
+   * Get active Yellow channels for a wallet
+   * GET /api/wallet/:address/channels
+   */
+  getWalletChannels: (address: string): Promise<AxiosResponse<WalletChannelsResponse>> =>
+    axios.get(`${API_BASE}/api/wallet/${address}/channels`),
+
+  /**
+   * Create/fund a Yellow channel
+   * POST /api/wallet/:address/fund-channel
+   */
+  fundWalletChannel: (
+    address: string,
+    data: FundChannelRequest
+  ): Promise<AxiosResponse<FundChannelResponse>> =>
+    axios.post(`${API_BASE}/api/wallet/${address}/fund-channel`, data),
+
+  /**
+   * Settle a channel using client wallet signature
+   * POST /api/wallet/:address/settle
+   */
+  settleWalletChannel: (
+    address: string,
+    data: WalletSettleRequest
+  ): Promise<AxiosResponse<WalletSettleResponse>> =>
+    axios.post(`${API_BASE}/api/wallet/${address}/settle`, data),
+
+  /**
+   * On-chain settlement using client wallet
+   * POST /api/wallet/:address/settle/onchain
+   */
+  settleWalletOnchain: (
+    address: string,
+    data: WalletSettleRequest
+  ): Promise<AxiosResponse<OnChainSettleResponse>> =>
+    axios.post(`${API_BASE}/api/wallet/${address}/settle/onchain`, data),
+
+  /**
+   * Get deposit history for a wallet
+   * GET /api/wallet/:address/deposits
+   */
+  getWalletDeposits: (address: string): Promise<AxiosResponse<WalletDepositsResponse>> =>
+    axios.get(`${API_BASE}/api/wallet/${address}/deposits`),
+
+  /**
+   * Get full wallet info
+   * GET /api/wallet/:address
+   */
+  getWalletInfo: (address: string): Promise<AxiosResponse<WalletInfoResponse>> =>
+    axios.get(`${API_BASE}/api/wallet/${address}`),
 };
 
 // ============================================

@@ -3,8 +3,9 @@ import { AgentList } from './components/AgentList';
 import { TransactionFeed } from './components/TransactionFeed';
 import { GasSavings } from './components/GasSavings';
 import { WorkflowBuilder } from './components/WorkflowBuilder';
+import { WalletConnect } from './components/WalletConnect';
 
-type Tab = 'agents' | 'transactions' | 'savings' | 'workflow';
+type Tab = 'agents' | 'transactions' | 'savings' | 'workflow' | 'wallet';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('agents');
@@ -14,6 +15,7 @@ function App() {
     { id: 'transactions' as Tab, icon: '💸', label: 'Live Feed' },
     { id: 'savings' as Tab, icon: '💰', label: 'Gas Savings' },
     { id: 'workflow' as Tab, icon: '🔨', label: 'Workflow' },
+    { id: 'wallet' as Tab, icon: '🔗', label: 'Wallet' },
   ];
 
   return (
@@ -46,11 +48,10 @@ function App() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`py-4 px-2 border-b-2 transition flex items-center gap-2 ${
-                activeTab === tab.id
+              className={`py-4 px-2 border-b-2 transition flex items-center gap-2 ${activeTab === tab.id
                   ? 'border-blue-500 text-blue-500'
                   : 'border-transparent text-gray-400 hover:text-gray-300'
-              }`}
+                }`}
             >
               <span>{tab.icon}</span>
               <span>{tab.label}</span>
@@ -65,6 +66,7 @@ function App() {
         {activeTab === 'transactions' && <TransactionFeed />}
         {activeTab === 'savings' && <GasSavings />}
         {activeTab === 'workflow' && <WorkflowBuilder />}
+        {activeTab === 'wallet' && <WalletConnect />}
       </main>
     </div>
   );
