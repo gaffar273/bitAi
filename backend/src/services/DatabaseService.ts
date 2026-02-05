@@ -96,6 +96,67 @@ export async function initDatabase() {
             )
         `;
 
+        // Workflow payments (revenue share distribution)
+        await sql`
+            CREATE TABLE IF NOT EXISTS workflow_payments (
+                id VARCHAR(255) PRIMARY KEY,
+                workflow_id VARCHAR(255) REFERENCES workflows(id),
+                total_amount NUMERIC NOT NULL,
+                distributed_at TIMESTAMP DEFAULT NOW()
+            )
+        `;
+
+        // Participant shares in workflows
+        await sql`
+            CREATE TABLE IF NOT EXISTS participant_shares (
+                id SERIAL PRIMARY KEY,
+                payment_id VARCHAR(255) REFERENCES workflow_payments(id),
+                agent_wallet VARCHAR(255) NOT NULL,
+                service_type VARCHAR(100) NOT NULL,
+                weight NUMERIC(5,4) NOT NULL,
+                payment NUMERIC NOT NULL,
+                complexity_score NUMERIC(3,2),
+                processing_time_ms INTEGER,
+                output_size_bytes INTEGER,
+                quality_score NUMERIC(3,2) DEFAULT 1.0,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        `;
+
+        // Disputes
+        await sql`
+            CREATE TABLE IF NOT EXISTS disputes (
+                id VARCHAR(255) PRIMARY KEY,
+                workflow_id VARCHAR(255) REFERENCES workflows(id),
+                initiator VARCHAR(255) NOT NULL,
+                reason VARCHAR(50) NOT NULL,
+                status VARCHAR(50) DEFAULT 'pending',
+                resolution VARCHAR(50),
+                evidence TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                resolved_at TIMESTAMP
+            )
+        `;
+
+        // Price floors
+        await sql`
+            CREATE TABLE IF NOT EXISTS price_floors (
+                service_type VARCHAR(100) PRIMARY KEY,
+                min_price_usdc NUMERIC NOT NULL
+            )
+        `;
+
+        // Insert default price floors
+        await sql`
+            INSERT INTO price_floors (service_type, min_price_usdc)
+            VALUES 
+                ('translation', 0.01),
+                ('summarizer', 0.01),
+                ('scraper', 0.005),
+                ('image_gen', 0.03)
+            ON CONFLICT (service_type) DO NOTHING
+        `;
+
         console.log('[Database] Schema initialized successfully');
     } catch (error) {
         console.error('[Database] Error initializing schema:', error);

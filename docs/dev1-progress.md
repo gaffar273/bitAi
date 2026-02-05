@@ -151,5 +151,32 @@ All Day 2 backend tasks completed:
 - `POST /api/orchestrator/workflow` - Execute multi-agent workflow
 - `GET /api/orchestrator/pricing/:serviceType` - Compare agent pricing
 
+---
+
+## Phase 7: Payment Structure (Completed)
+
+> Revenue share payment system with dynamic contribution weights
+
+### Completed Tasks
+- [x] Add `WorkMetrics` tracking for every job (response time, complexity, output size)
+- [x] Implement `RevenueShareService` with dynamic weight calculation
+- [x] Add price floor validation to agent registration
+- [x] Create contribution weight formula (0.30*complexity + 0.25*time + 0.25*quality + 0.20*outputSize)
+- [x] Update database schema with `workflow_payments`, `participant_shares`, `disputes`, `price_floors` tables
+
+### New Files/Updates
+| File | Changes |
+|------|---------|
+| `types/index.ts` | Added `WorkflowPayment`, `ParticipantShare`, `ContributionMetrics`, `Dispute`, `PRICE_FLOORS`, `COMPLEXITY_SCORES` |
+| `PaymentService.ts` | Added `RevenueShareService` class, `validatePricing()`, `getPriceFloor()` |
+| `OrchestratorService.ts` | Added metrics tracking, revenue distribution in workflow results |
+| `routes/agents.ts` | Added price floor validation on registration |
+| `DatabaseService.ts` | Added 4 new tables for revenue share tracking |
+
+### Payment Model
+- **Revenue Share**: Total workflow payment split among agents based on contribution weights
+- **Dynamic Weights**: Based on complexity, processing time, output size, quality score
+- **Price Floors**: Minimum prices per service type to prevent race-to-bottom
+- **Disputes**: Schema ready for automatic + manual dispute handling
 
 
