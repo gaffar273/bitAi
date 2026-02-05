@@ -169,6 +169,148 @@ Gas saved: ~$9.97 (vs on-chain)
 
 ---
 
+## Complete Payment System Flow
+
+### Overview: User to Agents
+
+```
+┌─────────┐     $1.00      ┌──────────────┐    Yellow     ┌─────────────┐
+│  USER   │ ────────────>  │ Orchestrator │ ────────────> │   Agents    │
+└─────────┘   (one-time)   └──────────────┘  (0-gas txs)  └─────────────┘
+                                  │
+                                  ▼
+                        ┌─────────────────┐
+                        │ Revenue Share   │
+                        │ Distribution    │
+                        └─────────────────┘
+```
+
+### Step-by-Step Payment Flow
+
+#### Step 1: User Funds Orchestrator
+```
+User deposits $1.00 USDC to Orchestrator wallet
+  └── On-chain transaction (one-time gas cost ~$0.50)
+  └── Orchestrator now has budget for workflow
+```
+
+#### Step 2: Orchestrator Opens Yellow Channel
+```
+Orchestrator opens state channel with $1.00 balance
+  └── POST /api/payments/channel/open
+  └── Channel ID generated (e.g., "0xChannel123")
+  └── Gas: $0 (off-chain from here)
+```
+
+#### Step 3: Workflow Execution with Instant Payments
+```
+For each step in workflow:
+  1. Orchestrator selects cheapest agent for service
+  2. Agent executes task
+  3. Orchestrator signs payment state update
+  4. Agent receives payment instantly (0 gas)
+
+Example:
+  ┌───────────┐ $0.02  ┌─────────┐
+  │Orchestrator├──────> │ Scraper │  (step 1)
+  └─────┬─────┘        └─────────┘
+        │
+        │ $0.03  ┌───────────┐
+        ├──────> │ Summarizer│  (step 2)
+        │        └───────────┘
+        │
+        │ $0.05  ┌────────────┐
+        └──────> │ Translator │  (step 3)
+                 └────────────┘
+```
+
+#### Step 4: Revenue Share Distribution (Dynamic Weights)
+```
+Total Workflow Cost: $0.10
+
+Weight Calculation per Agent:
+  weight = 0.30 * complexity + 0.25 * time + 0.25 * quality + 0.20 * output_size
+
+Example Distribution:
+  ┌─────────────┬────────────┬────────┬─────────┐
+  │ Agent       │ Complexity │ Weight │ Payment │
+  ├─────────────┼────────────┼────────┼─────────┤
+  │ Scraper     │ 0.3        │ 18%    │ $0.018  │
+  │ Summarizer  │ 0.5        │ 35%    │ $0.035  │
+  │ Translator  │ 0.6        │ 47%    │ $0.047  │
+  └─────────────┴────────────┴────────┴─────────┘
+```
+
+#### Step 5: Settlement (Optional - Batch)
+```
+After many workflows:
+  └── Orchestrator calls POST /api/payments/settle
+  └── All state updates batched into ONE on-chain tx
+  └── Final balances written to Base L2
+  └── Gas: ~$0.50 total (for 100+ txs)
+```
+
+### Payment System Components
+
+| Component | Purpose | File |
+|-----------|---------|------|
+| **PaymentService** | Transfer funds via Yellow | `PaymentService.ts` |
+| **RevenueShareService** | Calculate dynamic weights & distribute | `PaymentService.ts` |
+| **YellowService** | Yellow SDK integration | `YellowService.ts` |
+| **TransactionLogger** | Log all payments to DB | `TransactionLogger.ts` |
+
+### Price Floors (Minimum Payments)
+
+To prevent race-to-bottom pricing:
+
+| Service | Minimum Price |
+|---------|---------------|
+| translation | $0.01 |
+| summarizer | $0.01 |
+| scraper | $0.005 |
+| image_gen | $0.03 |
+
+### Dispute Handling
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  DISPUTE FLOW                        │
+├─────────────────────────────────────────────────────┤
+│                                                      │
+│  1. AUTOMATIC RESOLUTION                            │
+│     ├── Timeout (30s) → Auto-refund to client       │
+│     ├── Quality check failed → No payment           │
+│     └── 1 retry before escalation                   │
+│                                                      │
+│  2. MANUAL REVIEW (if auto fails)                   │
+│     ├── Admin reviews flagged transaction           │
+│     ├── Both parties submit evidence                │
+│     └── Resolution: refund / partial / paid         │
+│                                                      │
+└─────────────────────────────────────────────────────┘
+```
+
+### API Endpoints for Payments
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/payments/channel/open` | Open Yellow channel |
+| `POST /api/payments/transfer` | Send instant payment |
+| `GET /api/payments/channel/:id` | Get channel balance |
+| `POST /api/payments/settle` | Settle to blockchain |
+| `POST /api/orchestrator/workflow` | Execute workflow with auto-payments |
+
+### Gas Savings Example
+
+| Scenario | On-Chain | Yellow | Savings |
+|----------|----------|--------|---------|
+| 1 payment | $2.00 | $0.00 | 100% |
+| 10 payments | $20.00 | $0.00 | 100% |
+| 100 payments | $200.00 | $0.50 (settle) | 99.75% |
+| 1000 payments | $2000.00 | $0.50 (settle) | 99.98% |
+
+---
+
 ## Tech Stack Summary
 
 | Component | Technology | Owner |
