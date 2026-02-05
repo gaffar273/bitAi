@@ -11,9 +11,24 @@ import {
     generateChannelNonce,
 } from '@erc7824/nitrolite';
 
+// FIX: Patch BigInt serialization for JSON.stringify used by SDK
+(BigInt.prototype as any).toJSON = function () {
+    return this.toString();
+};
+
 // In-memory storage
 const channels: Map<string, PaymentChannel> = new Map();
 const transactions: Transaction[] = [];
+
+// Yellow Ledger - PROOF of ClearNode communication
+interface YellowLedgerEntry {
+    timestamp: string;
+    type: 'connection' | 'session_created' | 'payment' | 'rpc_response' | 'settlement';
+    message: string;
+    data: unknown;
+    signature?: string;
+}
+const yellowLedger: YellowLedgerEntry[] = [];
 
 interface YellowSession {
     sessionId: string;
@@ -34,7 +49,10 @@ export class YellowService {
     static createMessageSigner(privateKey: string) {
         const wallet = new ethers.Wallet(privateKey);
         return async (payload: unknown): Promise<string> => {
-            const message = typeof payload === 'string' ? payload : JSON.stringify(payload);
+            // Handle BigInt serialization for Yellow SDK
+            const message = typeof payload === 'string' ? payload : JSON.stringify(payload, (_, v) =>
+                typeof v === 'bigint' ? v.toString() : v
+            );
             return await wallet.signMessage(message);
         };
     }
@@ -56,6 +74,12 @@ export class YellowService {
 
             this.ws.onopen = () => {
                 console.log('[Yellow] Connected to ClearNode!');
+                yellowLedger.push({
+                    timestamp: new Date().toISOString(),
+                    type: 'connection',
+                    message: 'Connected to Yellow Network ClearNode',
+                    data: { url: config.yellowWsUrl }
+                });
                 resolve();
             };
 
@@ -347,9 +371,27 @@ export class YellowService {
         try {
             const response = parseAnyRPCResponse(data);
             console.log('[Yellow] RPC:', JSON.stringify(response).slice(0, 100));
+
+            yellowLedger.push({
+                timestamp: new Date().toISOString(),
+                type: 'rpc_response',
+                message: 'Received RPC response from ClearNode',
+                data: response
+            });
         } catch {
             console.log('[Yellow] Message received');
+            yellowLedger.push({
+                timestamp: new Date().toISOString(),
+                type: 'rpc_response',
+                message: 'Received raw message from ClearNode',
+                data: { raw: data.toString() }
+            });
         }
+    }
+
+    // Get the proof ledger
+    static getLedger(): YellowLedgerEntry[] {
+        return yellowLedger;
     }
 
     // Get all sessions for a specific user address
@@ -444,7 +486,7 @@ export class YellowService {
         const channel = channels.get(channelId);
         if (!channel) throw new Error('Channel not found');
 
-        const signerKey = privateKey || config.privateKey;
+        const signerKey = (privateKey && privateKey !== 'demo-key') ? privateKey : config.privateKey;
         if (!signerKey) {
             throw new Error('Private key required for on-chain settlement');
         }
@@ -506,6 +548,18 @@ export class YellowService {
             const explorerUrl = `${config.baseSepolia.explorer}/tx/${tx.hash}`;
 
             console.log(`[Yellow] Settlement confirmed!`);
+
+            // Log to Yellow Ledger
+            yellowLedger.push({
+                timestamp: new Date().toISOString(),
+                type: 'settlement',
+                message: 'Settled on-chain via Base Sepolia',
+                data: {
+                    txHash: tx.hash,
+                    block: receipt.blockNumber,
+                    explorer: explorerUrl
+                }
+            });
             console.log(`[Yellow] Block: ${receipt.blockNumber}`);
             console.log(`[Yellow] Gas used: ${receipt.gasUsed.toString()}`);
             console.log(`[Yellow] Explorer: ${explorerUrl}`);
@@ -524,6 +578,67 @@ export class YellowService {
                 error: error instanceof Error ? error.message : 'Settlement failed',
             };
         }
+    }
+
+    // Get settlement data for client-side signing
+    static async getSettlementData(channelId: string, userAddress: string) {
+        const channel = channels.get(channelId);
+        if (!channel) throw new Error('Channel not found');
+
+        // Create settlement data
+        const settlementData = {
+            channelId: channel.channelId,
+            agentA: channel.agentA,
+            agentB: channel.agentB,
+            balanceA: channel.balanceA,
+            balanceB: channel.balanceB,
+            nonce: channel.nonce,
+            timestamp: Date.now(),
+        };
+
+        // Create Hex data for the transaction
+        const data = ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify({
+            type: 'YELLOW_SETTLEMENT',
+            ...settlementData,
+        })));
+
+        return {
+            to: channel.agentB, // Send proof to the partner (Orchestrator) to close channel
+            value: '0x0',
+            data: data,
+            settlementData
+        };
+    }
+
+    // Mark channel as settled (after client reports success)
+    static async markSettled(channelId: string, txHash: string) {
+        const channel = channels.get(channelId);
+        if (!channel) throw new Error('Channel not found');
+
+        channel.status = 'settled';
+        channel.settleTxHash = txHash;
+        channel.updatedAt = new Date();
+        channels.set(channelId, channel);
+
+        // Find session and remove it
+        for (const [key, session] of sessions) {
+            if (session.channelId === channelId) {
+                sessions.delete(key);
+                break;
+            }
+        }
+
+        console.log(`[Yellow] Client settled channel on-chain: ${txHash}`);
+
+        // Log to Ledger
+        yellowLedger.push({
+            timestamp: new Date().toISOString(),
+            type: 'settlement',
+            message: 'Client-side settlement on Base Sepolia',
+            data: { txHash, channelId }
+        });
+
+        return channel;
     }
 
     // Disconnect

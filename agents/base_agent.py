@@ -21,7 +21,7 @@ class BaseAgent:
         self.nonce = 0 
 
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-pro",
+            model="gemini-2.0-flash",
             temperature=0
         )
 

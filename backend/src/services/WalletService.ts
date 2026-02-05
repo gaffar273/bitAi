@@ -115,12 +115,27 @@ export class WalletService {
     static async getUserChannels(userAddress: string) {
         const sessions = await YellowService.getUserSessions(userAddress);
 
-        return sessions.map(session => ({
-            sessionId: session.sessionId,
-            channelId: session.channelId,
-            userAddress: session.userAddress,
-            partnerAddress: session.partnerAddress,
-            status: session.status,
+        return await Promise.all(sessions.map(async session => {
+            const channel = await YellowService.getChannel(session.channelId);
+            let balance = '0';
+
+            if (channel) {
+                // Determine which balance belongs to the user
+                if (channel.agentA.toLowerCase() === userAddress.toLowerCase()) {
+                    balance = channel.balanceA.toString();
+                } else if (channel.agentB.toLowerCase() === userAddress.toLowerCase()) {
+                    balance = channel.balanceB.toString();
+                }
+            }
+
+            return {
+                sessionId: session.sessionId,
+                channelId: session.channelId,
+                userAddress: session.userAddress,
+                partnerAddress: session.partnerAddress,
+                status: session.status,
+                balance: balance,
+            };
         }));
     }
 

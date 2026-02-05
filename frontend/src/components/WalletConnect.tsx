@@ -58,6 +58,7 @@ export function WalletConnect() {
         };
     });
     const [copied, setCopied] = useState(false);
+    const [settling, setSettling] = useState<string | null>(null);
 
     const isMetaMaskInstalled = typeof window !== 'undefined' && Boolean(window.ethereum?.isMetaMask);
 
@@ -318,6 +319,45 @@ export function WalletConnect() {
         }
     }, [wallet.address]);
 
+    const handleSettle = async (channelId: string) => {
+        if (!wallet.address || !window.ethereum) return;
+
+        setSettling(channelId);
+        try {
+            // 1. Get transaction data from backend
+            const dataRes = await api.getSettlementData(wallet.address, channelId);
+            const txData = dataRes.data.data; // { to, value, data }
+
+            alert(`Ready to settle! Amount: ${(Number(txData.settlementData.balanceA) / 1e18).toFixed(6)} ETH. Please confirm in MetaMask.`);
+
+            // 2. Send transaction via MetaMask
+            const txHash = await window.ethereum.request({
+                method: 'eth_sendTransaction',
+                params: [{
+                    from: wallet.address,
+                    to: txData.to,
+                    value: txData.value, // '0x0' usually
+                    data: txData.data, // The proof
+                }],
+            }) as string;
+
+            console.log('On-chain tx sent:', txHash);
+            alert(`Transaction Sent! Hash: ${txHash}. Waiting for confirmation...`);
+
+            // 3. Notify backend
+            await api.settleCallback(wallet.address, channelId, txHash);
+
+            alert('Settlement Complete! Channel closed on Yellow Network.');
+            refreshBalance();
+
+        } catch (err) {
+            console.error('Settlement failed:', err);
+            alert('Settlement failed: ' + (err instanceof Error ? err.message : JSON.stringify(err)));
+        } finally {
+            setSettling(null);
+        }
+    };
+
     const formatAddress = (address: string) => {
         return `${address.slice(0, 6)}...${address.slice(-4)}`;
     };
@@ -548,23 +588,35 @@ export function WalletConnect() {
                                         Channel: {channel.channelId.slice(0, 8)}...
                                     </div>
                                 </div>
+
                                 <div className="text-right">
-                                    <div className="text-blue-400 font-semibold">
+                                    <div className="text-blue-400 font-semibold mb-1">
                                         {(channel.balance / 1e18).toFixed(4)} ETH
                                     </div>
-                                    <div className={`text-xs ${channel.status === 'open' ? 'text-green-500' : 'text-yellow-500'
+                                    <div className={`text-xs mb-2 ${channel.status === 'open' ? 'text-green-500' : 'text-yellow-500'
                                         }`}>
                                         {channel.status.toUpperCase()}
                                     </div>
+                                    <button
+                                        onClick={() => handleSettle(channel.channelId)}
+                                        disabled={settling === channel.channelId}
+                                        className={`px-3 py-1 text-xs rounded border transition ${settling === channel.channelId
+                                            ? 'bg-gray-600 border-gray-600 text-gray-400 cursor-not-allowed'
+                                            : 'bg-transparent border-red-500 text-red-500 hover:bg-red-500 hover:text-white'
+                                            }`}
+                                    >
+                                        {settling === channel.channelId ? 'Settling...' : 'Settle On-Chain'}
+                                    </button>
                                 </div>
                             </motion.div>
                         ))}
                     </div>
-                )}
-            </motion.div>
+                )
+                }
+            </motion.div >
 
             {/* Info Section */}
-            <motion.div
+            < motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.4 }}
@@ -585,7 +637,7 @@ export function WalletConnect() {
                     <h3 className="font-semibold mb-1">Secure</h3>
                     <p className="text-sm text-gray-400">Non-custodial with cryptographic guarantees</p>
                 </div>
-            </motion.div>
-        </div>
+            </motion.div >
+        </div >
     );
 }

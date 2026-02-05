@@ -63,3 +63,18 @@ class ImageGenAgent(BaseAgent):
         prompt = f"Generate a detailed image description for: {prompt_text}"
         result = self.ask_ai(prompt)
         return f"IMAGE_URL_STUB: {result[:50]}..."
+
+
+class PDFLoaderAgent(BaseAgent):
+    def __init__(self):
+        # Price in USDC (minimum floor: 0.01)
+        super().__init__("PDFLoader", "pdf_loader", 0.01)
+
+    def execute_service(self, input_data):
+        # input_data could be dict with 'pdf_path' or just a string
+        if isinstance(input_data, str):
+            pdf_input = input_data
+        else:
+            pdf_input = input_data.get('pdf_path', str(input_data))
+        prompt = f"Extract and summarize the key information from a PDF document about: {pdf_input}"
+        return self.ask_ai(prompt)

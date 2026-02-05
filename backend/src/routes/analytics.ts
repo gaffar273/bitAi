@@ -43,4 +43,21 @@ router.get('/transactions', async (req: Request, res: Response) => {
     }
 });
 
+// Get Yellow Network Proof Ledger (ClearNode interactions)
+router.get('/yellow-proof', async (_req: Request, res: Response) => {
+    try {
+        const ledger = YellowService.getLedger();
+        res.json({
+            success: true,
+            data: ledger,
+        });
+    } catch (error) {
+        console.error('Error fetching Yellow ledger:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch Yellow proof ledger',
+        });
+    }
+});
+
 export default router;

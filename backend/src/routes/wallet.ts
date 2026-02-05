@@ -203,6 +203,52 @@ router.post('/:address/settle', async (req: Request, res: Response) => {
     }
 });
 
+// GET /api/wallet/:address/settle-data - Get settlement data for client-side signing
+router.get('/:address/settle-data', async (req: Request, res: Response) => {
+    try {
+        const address = req.params.address as string;
+        const channelId = req.query.channel_id as string;
+
+        if (!channelId) {
+            return res.status(400).json({ success: false, error: 'channel_id required' });
+        }
+
+        const data = await YellowService.getSettlementData(channelId, address);
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        console.error('[Wallet Route] Get settle data error:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to get settlement data',
+        });
+    }
+});
+
+// POST /api/wallet/:address/settle-callback - Mark channel as settled after client tx
+router.post('/:address/settle-callback', async (req: Request, res: Response) => {
+    try {
+        const { channel_id, tx_hash } = req.body;
+
+        if (!channel_id || !tx_hash) {
+            return res.status(400).json({ success: false, error: 'Missing fields' });
+        }
+
+        await YellowService.markSettled(channel_id, tx_hash);
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[Wallet Route] Settle callback error:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to mark settled',
+        });
+    }
+});
+
 // POST /api/wallet/:address/settle/onchain - On-chain settlement using client wallet
 router.post('/:address/settle/onchain', async (req: Request, res: Response) => {
     try {

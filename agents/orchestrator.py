@@ -6,7 +6,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from dotenv import load_dotenv
 
 # Import specialist agents
-from specialists import SummarizerAgent, TranslatorAgent, ScraperAgent, ImageGenAgent
+from specialists import SummarizerAgent, TranslatorAgent, ScraperAgent, ImageGenAgent, PDFLoaderAgent
 
 load_dotenv()
 
@@ -28,7 +28,8 @@ class UniversalOrchestrator:
             "summarizer": SummarizerAgent(),
             "translator": TranslatorAgent(),
             "scraper": ScraperAgent(),
-            "image_gen": ImageGenAgent()
+            "image_gen": ImageGenAgent(),
+            "pdf_loader": PDFLoaderAgent()
         }
         
         self.total_cost = 0.0

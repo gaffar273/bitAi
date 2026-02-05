@@ -8,6 +8,7 @@ const SERVICE_CONFIGS = {
   summarizer: { emoji: '📝', name: 'Summarizer', color: 'purple', price: 0.02, placeholder: 'Enter text to summarize...' },
   translation: { emoji: '🌍', name: 'Translator', color: 'green', price: 0.02, placeholder: 'Enter text to translate...' },
   image_gen: { emoji: '🎨', name: 'Image Generator', color: 'pink', price: 0.05, placeholder: 'Describe the image...' },
+  pdf_loader: { emoji: '📄', name: 'PDF Loader', color: 'orange', price: 0.01, placeholder: 'PDF files will be auto-loaded...' },
 };
 
 type ServiceType = keyof typeof SERVICE_CONFIGS;
@@ -71,9 +72,13 @@ export function WorkflowBuilder() {
         input: index === 0 ? { text: inputText, url: inputText, prompt: inputText } : undefined,
       }));
 
+      // Get connected user wallet
+      const userWallet = localStorage.getItem('agentswarm_wallet_address');
+
       const response = await api.executeWorkflow({
         orchestratorWallet: agents[0].wallet,
-        steps: workflowSteps
+        steps: workflowSteps,
+        userWallet: userWallet || undefined // Pass user wallet if connected
       });
 
       if (response.data.success) {
@@ -125,6 +130,22 @@ export function WorkflowBuilder() {
         </motion.div>
       )}
 
+      {/* PROMPT INPUT - Main input area at the top */}
+      <div className="mb-8 p-6 bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-500/50 rounded-xl">
+        <label className="block text-lg font-semibold text-white mb-3">
+          Enter Your Prompt
+        </label>
+        <textarea
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          placeholder={getPlaceholder()}
+          className="w-full h-40 p-4 bg-gray-900 border-2 border-gray-600 rounded-lg text-white text-lg placeholder-gray-500 focus:border-blue-500 focus:outline-none resize-none"
+        />
+        <p className="text-sm text-gray-400 mt-2">
+          Type what you want to process, then add services below and click Execute
+        </p>
+      </div>
+
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Left: Service Palette */}
         <div>
@@ -162,19 +183,6 @@ export function WorkflowBuilder() {
                 {steps.length} step{steps.length !== 1 ? 's' : ''} - ${totalCost.toFixed(2)} total
               </div>
             )}
-          </div>
-
-          {/* Input Text Area */}
-          <div className="mb-4">
-            <label className="block text-sm text-gray-400 mb-2">
-              Input for Workflow
-            </label>
-            <textarea
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder={getPlaceholder()}
-              className="w-full h-32 p-4 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none resize-none"
-            />
           </div>
 
           {/* Workflow Steps */}

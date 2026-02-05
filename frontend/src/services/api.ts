@@ -247,6 +247,27 @@ export const api = {
     axios.post(`${API_BASE}/api/wallet/${address}/settle/onchain`, data),
 
   /**
+   * Get settlement data for client-side signing
+   * GET /api/wallet/:address/settle-data
+   */
+  getSettlementData: (
+    address: string,
+    channelId: string
+  ): Promise<AxiosResponse<{ success: boolean; data: any }>> =>
+    axios.get(`${API_BASE}/api/wallet/${address}/settle-data`, { params: { channel_id: channelId } }),
+
+  /**
+   * Callback after client-side settlement
+   * POST /api/wallet/:address/settle-callback
+   */
+  settleCallback: (
+    address: string,
+    channelId: string,
+    txHash: string
+  ): Promise<AxiosResponse<{ success: boolean }>> =>
+    axios.post(`${API_BASE}/api/wallet/${address}/settle-callback`, { channel_id: channelId, tx_hash: txHash }),
+
+  /**
    * Get deposit history for a wallet
    * GET /api/wallet/:address/deposits
    */

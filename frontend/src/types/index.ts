@@ -2,7 +2,7 @@
 // Service & Pricing Types
 // ============================================
 
-export type ServiceType = 'translation' | 'image_gen' | 'scraper' | 'summarizer' | 'orchestrator';
+export type ServiceType = 'translation' | 'image_gen' | 'scraper' | 'summarizer' | 'orchestrator' | 'pdf_loader';
 
 export interface Service {
   type: ServiceType;
@@ -97,6 +97,7 @@ export interface ExecuteWorkflowRequest {
   orchestratorWallet: string;
   steps: WorkflowStep[];
   channelId?: string;
+  userWallet?: string;
 }
 
 export interface WorkflowResult {

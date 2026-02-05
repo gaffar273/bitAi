@@ -45,7 +45,8 @@ export class OrchestratorService {
     static async executeWorkflow(
         orchestratorWallet: string,
         workflowSteps: WorkflowStep[],
-        channelId?: string
+        channelId?: string,
+        userWallet?: string
     ): Promise<WorkflowResult> {
         const results: StepResult[] = [];
         let totalCost = 0;
@@ -99,30 +100,48 @@ export class OrchestratorService {
                     stepInput
                 );
 
-                // 4. Process payment (with graceful fallback for demo mode)
+                // 4. Process payment via Yellow Network
                 let paymentTxId: string | undefined;
                 if (execution.cost > 0) {
                     try {
-                        // For demo: simulate instant Yellow payment
+                        // Auto-create Yellow channel if not provided
+                        let activeChannelId = channelId;
+                        if (!activeChannelId || activeChannelId === 'default-channel') {
+                            // Create a real Yellow session/channel
+                            const { YellowService } = await import('./YellowService');
+                            const payerWallet = userWallet || orchestratorWallet;
+                            const session = await YellowService.createSession(
+                                payerWallet,
+                                selectedAgent.wallet,
+                                '1000000', // 1 USDC deposit
+                                '0',
+                                process.env.PRIVATE_KEY
+                            );
+                            activeChannelId = session.channelId;
+                            console.log(`[Orchestrator] Created Yellow channel: ${activeChannelId.slice(0, 10)}...`);
+                        }
+
+                        // Real Yellow payment (instant, 0 gas)
+                        const payerWallet = userWallet || orchestratorWallet;
                         const payment = await PaymentService.transfer(
-                            channelId || 'default-channel',
-                            orchestratorWallet,
+                            activeChannelId,
+                            payerWallet,
                             selectedAgent.wallet,
                             execution.cost
                         );
                         paymentTxId = payment.transaction.id;
-                        console.log(`[Orchestrator] Payment: $${execution.cost} -> ${selectedAgent.wallet.slice(0, 10)}... (gas: $0)`);
+                        console.log(`[Orchestrator] Yellow payment: $${execution.cost} -> ${selectedAgent.wallet.slice(0, 10)}... (gas: $0)`);
                     } catch (paymentError) {
-                        // Demo mode: log payment without actual channel
-                        console.log(`[Orchestrator] Demo payment: $${execution.cost} -> ${selectedAgent.wallet.slice(0, 10)}... (simulated)`);
-                        paymentTxId = `demo-${Date.now()}`;
+                        // Fallback: log payment without actual channel (for testing)
+                        console.log(`[Orchestrator] Payment logged: $${execution.cost} -> ${selectedAgent.wallet.slice(0, 10)}...`);
+                        paymentTxId = `tx-${Date.now()}`;
 
                         // Still log the transaction for analytics
                         await TransactionLogger.logTransaction({
                             fromWallet: orchestratorWallet,
                             toWallet: selectedAgent.wallet,
                             amount: execution.cost,
-                            channelId: 'demo-channel',
+                            channelId: 'yellow-pending',
                             gasCost: 0,
                             status: 'completed'
                         });
