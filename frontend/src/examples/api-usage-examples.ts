@@ -362,7 +362,7 @@ export const completeExample = async () => {
 
     // 4. Execute workflow
     console.log('\n4. Executing workflow...');
-    const workflow = await executeNewsTranslationWorkflow(orchestrator.wallet);
+    await executeNewsTranslationWorkflow(orchestrator.wallet);
 
     // 5. Check savings
     console.log('\n5. Checking gas savings...');
