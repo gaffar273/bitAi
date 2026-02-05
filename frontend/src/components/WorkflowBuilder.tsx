@@ -8,6 +8,7 @@ const SERVICE_CONFIGS = {
   summarizer: { emoji: '📝', name: 'Summarizer', color: 'purple', price: 0.03 },
   translation: { emoji: '🌍', name: 'Translator', color: 'green', price: 0.05 },
   image_gen: { emoji: '🎨', name: 'Image Generator', color: 'pink', price: 0.10 },
+  orchestrator: { emoji: '🎯', name: 'Orchestrator', color: 'orange', price: 0.00 },
 };
 
 export function WorkflowBuilder() {
@@ -45,7 +46,10 @@ export function WorkflowBuilder() {
     setResult(null);
 
     try {
-      const response = await api.executeWorkflow(agents[0].wallet, steps);
+      const response = await api.executeWorkflow({
+        orchestratorWallet: agents[0].wallet,
+        steps
+      });
       setResult(response.data.data);
     } catch (error) {
       console.error('Workflow failed:', error);
