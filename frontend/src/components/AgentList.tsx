@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { api } from '../services/api';
-import type { Agent } from '../types';
+import type { Agent, ServiceType } from '../types';
 import { AgentCard } from './AgentCard';
 
 export function AgentList() {
@@ -9,27 +9,28 @@ export function AgentList() {
   const [filter, setFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadAgents();
-  }, [filter]);
-
-  const loadAgents = async () => {
+  const loadAgents = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await api.getAgents(filter === 'all' ? undefined : filter);
+      const serviceFilter = filter === 'all' ? undefined : filter as ServiceType;
+      const response = await api.getAgents(serviceFilter);
       setAgents(response.data.data);
     } catch (error) {
       console.error('Failed to load agents:', error);
     }
     setLoading(false);
-  };
+  }, [filter]);
+
+  useEffect(() => {
+    loadAgents();
+  }, [loadAgents]);
 
   const serviceTypes = ['all', 'translation', 'image_gen', 'scraper', 'summarizer'];
 
   return (
     <div className="max-w-7xl mx-auto p-8">
       {/* Header */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="mb-8"
@@ -46,11 +47,10 @@ export function AgentList() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setFilter(type)}
-            className={`px-6 py-2 rounded-lg capitalize font-medium transition ${
-              filter === type 
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/50' 
-                : 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700'
-            }`}
+            className={`px-6 py-2 rounded-lg capitalize font-medium transition ${filter === type
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/50'
+              : 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700'
+              }`}
           >
             {type.replace('_', ' ')}
           </motion.button>
@@ -61,8 +61,8 @@ export function AgentList() {
       {loading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3, 4, 5, 6].map(i => (
-            <div 
-              key={i} 
+            <div
+              key={i}
               className="border border-gray-700 rounded-lg p-6 bg-gray-800 animate-pulse"
             >
               <div className="flex items-center gap-3 mb-4">
@@ -81,7 +81,7 @@ export function AgentList() {
 
       {/* Agent Grid */}
       {!loading && agents.length > 0 && (
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
@@ -109,8 +109,8 @@ export function AgentList() {
           <div className="text-8xl mb-6">🤷</div>
           <h3 className="text-2xl font-semibold mb-2">No Agents Found</h3>
           <p className="text-gray-400 mb-6">
-            {filter === 'all' 
-              ? 'No agents have been registered yet.' 
+            {filter === 'all'
+              ? 'No agents have been registered yet.'
               : `No ${filter.replace('_', ' ')} agents available.`}
           </p>
           <div className="text-sm text-gray-500">
@@ -145,7 +145,7 @@ export function AgentList() {
 
           <div className="bg-gray-800 rounded-lg p-6 text-center border border-gray-700">
             <div className="text-4xl font-bold text-purple-400 mb-2">
-              {agents.length > 0 
+              {agents.length > 0
                 ? Math.round(agents.reduce((sum, a) => sum + a.reputation, 0) / agents.length / 200)
                 : 0}/5
             </div>

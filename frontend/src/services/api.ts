@@ -193,14 +193,14 @@ export const api = {
     axios.post(`${API_BASE}/api/wallet/connect`, data),
 
   /**
-   * Get wallet balances (ETH & USDC)
+   * Get wallet balances (ETH)
    * GET /api/wallet/:address/balance
    */
   getWalletBalance: (address: string): Promise<AxiosResponse<WalletBalanceResponse>> =>
     axios.get(`${API_BASE}/api/wallet/${address}/balance`),
 
   /**
-   * Record a USDC deposit
+   * Record an ETH deposit
    * POST /api/wallet/:address/deposit
    */
   recordDeposit: (
@@ -266,18 +266,18 @@ export const api = {
 // ============================================
 
 /**
- * Convert USDC to micro-USDC (6 decimals)
- * Example: 1.5 USDC -> "1500000"
+ * Convert ETH to wei (18 decimals)
+ * Example: 0.001 ETH -> "1000000000000000"
  */
-export const toMicroUsdc = (usdc: number): string => {
-  return Math.floor(usdc * 1_000_000).toString();
+export const toWei = (eth: number): string => {
+  return Math.floor(eth * 1e18).toString();
 };
 
 /**
- * Convert micro-USDC to USDC
- * Example: "1500000" -> 1.5 USDC
+ * Convert wei to ETH
+ * Example: "1000000000000000" -> 0.001 ETH
  */
-export const fromMicroUsdc = (microUsdc: string | number): number => {
-  const value = typeof microUsdc === 'string' ? parseInt(microUsdc) : microUsdc;
-  return value / 1_000_000;
+export const fromWei = (wei: string | number): number => {
+  const value = typeof wei === 'string' ? parseInt(wei) : wei;
+  return value / 1e18;
 };

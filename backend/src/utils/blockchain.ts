@@ -30,13 +30,13 @@ export const verifyMessage = (message: string, signature: string): string => {
     return ethers.verifyMessage(message, signature);
 };
 
-// Format USDC amount (6 decimals)
-export const parseUsdc = (amount: number): bigint => {
-    return ethers.parseUnits(amount.toString(), 6);
+// Format ETH amount (18 decimals)
+export const parseEth = (amount: number): bigint => {
+    return ethers.parseUnits(amount.toString(), 18);
 };
 
-export const formatUsdc = (amount: bigint): number => {
-    return parseFloat(ethers.formatUnits(amount, 6));
+export const formatEth = (amount: bigint): number => {
+    return parseFloat(ethers.formatUnits(amount, 18));
 };
 
 // Generate unique ID

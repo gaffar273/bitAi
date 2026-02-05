@@ -20,7 +20,7 @@ export const config = {
         explorer: process.env.BASE_SEPOLIA_EXPLORER || 'https://sepolia.basescan.org',
     },
 
-    // USDC Contract on Base Sepolia
+    // Token Contract on Base Sepolia (deprecated - using native ETH)
     usdcContract: process.env.USDC_CONTRACT_ADDRESS || '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
 
     // Default orchestrator address for wallet channels

@@ -23,7 +23,6 @@ const WALLET_STORAGE_KEY = 'agentswarm_wallet_address';
 interface WalletState {
     address: string | null;
     ethBalance: string;
-    usdcBalance: string;
     channels: WalletChannel[];
     isConnecting: boolean;
     isRefreshing: boolean;
@@ -51,7 +50,6 @@ export function WalletConnect() {
         return {
             address: savedAddress,
             ethBalance: '0',
-            usdcBalance: '0',
             channels: [],
             isConnecting: false,
             isRefreshing: false,
@@ -106,15 +104,6 @@ export function WalletConnect() {
                 }
             }
 
-            // Get USDC balance from backend
-            let usdcBalance = '0';
-            try {
-                const balanceResponse = await api.getWalletBalance(address);
-                usdcBalance = balanceResponse.data.data.usdc;
-            } catch (e) {
-                console.error('Failed to get USDC balance from backend:', e);
-            }
-
             // Get channels
             let channels: WalletChannel[] = [];
             try {
@@ -124,10 +113,10 @@ export function WalletConnect() {
                 // Channels might not exist yet
             }
 
-            return { ethBalance, usdcBalance, channels };
+            return { ethBalance, channels };
         } catch (err) {
             console.error('Failed to fetch wallet data:', err);
-            return { ethBalance: '0', usdcBalance: '0', channels: [] };
+            return { ethBalance: '0', channels: [] };
         }
     }, []);
 
@@ -150,7 +139,6 @@ export function WalletConnect() {
                         ...prev,
                         address: savedAddress,
                         ethBalance: data.ethBalance,
-                        usdcBalance: data.usdcBalance,
                         channels: data.channels,
                         network: 'Base Sepolia',
                     }));
@@ -183,7 +171,6 @@ export function WalletConnect() {
                 setWallet({
                     address: null,
                     ethBalance: '0',
-                    usdcBalance: '0',
                     channels: [],
                     isConnecting: false,
                     isRefreshing: false,
@@ -196,7 +183,6 @@ export function WalletConnect() {
                 setWallet({
                     address: null,
                     ethBalance: '0',
-                    usdcBalance: '0',
                     channels: [],
                     isConnecting: false,
                     isRefreshing: false,
@@ -275,7 +261,6 @@ export function WalletConnect() {
             setWallet({
                 address,
                 ethBalance: data.ethBalance,
-                usdcBalance: data.usdcBalance,
                 channels: data.channels,
                 isConnecting: false,
                 isRefreshing: false,
@@ -303,7 +288,6 @@ export function WalletConnect() {
             setWallet(prev => ({
                 ...prev,
                 ethBalance: data.ethBalance,
-                usdcBalance: data.usdcBalance,
                 channels: data.channels,
                 isRefreshing: false,
             }));
@@ -318,7 +302,6 @@ export function WalletConnect() {
         setWallet({
             address: null,
             ethBalance: '0',
-            usdcBalance: '0',
             channels: [],
             isConnecting: false,
             isRefreshing: false,
@@ -484,18 +467,10 @@ export function WalletConnect() {
                 </div>
 
                 {/* Balances */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div className="bg-gray-800/50 rounded-xl p-4">
-                        <div className="text-sm text-gray-400 mb-1">ETH Balance</div>
-                        <div className="text-2xl font-bold text-blue-400">
-                            {parseFloat(wallet.ethBalance).toFixed(4)} ETH
-                        </div>
-                    </div>
-                    <div className="bg-gray-800/50 rounded-xl p-4">
-                        <div className="text-sm text-gray-400 mb-1">USDC Balance</div>
-                        <div className="text-2xl font-bold text-green-400">
-                            ${parseFloat(wallet.usdcBalance).toFixed(2)} USDC
-                        </div>
+                <div className="bg-gray-800/50 rounded-xl p-4 mb-4">
+                    <div className="text-sm text-gray-400 mb-1">ETH Balance (Base Sepolia)</div>
+                    <div className="text-2xl font-bold text-blue-400">
+                        {parseFloat(wallet.ethBalance).toFixed(4)} ETH
                     </div>
                 </div>
 
@@ -505,8 +480,8 @@ export function WalletConnect() {
                     whileHover={{ scale: wallet.isRefreshing ? 1 : 1.02 }}
                     whileTap={{ scale: wallet.isRefreshing ? 1 : 0.98 }}
                     className={`w-full py-2 rounded-lg text-sm transition ${wallet.isRefreshing
-                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                            : 'bg-gray-700 hover:bg-gray-600'
+                        ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                        : 'bg-gray-700 hover:bg-gray-600'
                         }`}
                 >
                     {wallet.isRefreshing ? (
@@ -574,8 +549,8 @@ export function WalletConnect() {
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <div className="text-green-400 font-semibold">
-                                        ${channel.balance.toFixed(2)} USDC
+                                    <div className="text-blue-400 font-semibold">
+                                        {(channel.balance / 1e18).toFixed(4)} ETH
                                     </div>
                                     <div className={`text-xs ${channel.status === 'open' ? 'text-green-500' : 'text-yellow-500'
                                         }`}>

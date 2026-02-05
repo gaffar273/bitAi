@@ -68,11 +68,11 @@ router.get('/:address/balance', async (req: Request, res: Response) => {
     }
 });
 
-// POST /api/wallet/:address/deposit - Record USDC deposit
+// POST /api/wallet/:address/deposit - Record ETH deposit
 router.post('/:address/deposit', async (req: Request, res: Response) => {
     try {
         const address = req.params.address as string;
-        const { amount, txHash, token = 'USDC' } = req.body;
+        const { amount, txHash, token = 'ETH' } = req.body;
 
         if (!amount || !txHash) {
             return res.status(400).json({

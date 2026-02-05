@@ -55,14 +55,14 @@ export interface GetAgentResponse {
 
 export interface ExecuteServiceRequest {
   service_type: ServiceType;
-  input: any;
+  input: Record<string, unknown>;
 }
 
 export interface ExecuteServiceResponse {
   success: boolean;
   data: {
     success: boolean;
-    output: any;
+    output: unknown;
     cost: number;
     duration: number;
   };
@@ -78,7 +78,7 @@ export interface UpdateReputationRequest {
 
 export interface WorkflowStep {
   serviceType: ServiceType;
-  input?: any;
+  input?: Record<string, unknown>;
   agentWallet?: string;
 }
 
@@ -86,8 +86,8 @@ export interface WorkflowStepResult {
   step: number;
   serviceType: ServiceType;
   agentWallet: string;
-  input: any;
-  output: any;
+  input: Record<string, unknown>;
+  output: unknown;
   cost: number;
   duration: number;
   paymentTxId: string;
@@ -130,8 +130,8 @@ export interface GetPricingResponse {
 export interface OpenChannelRequest {
   agent_a: string;
   agent_b: string;
-  balance_a: string; // micro-USDC (6 decimals)
-  balance_b: string; // micro-USDC (6 decimals)
+  balance_a: string; // wei (18 decimals)
+  balance_b: string; // wei (18 decimals)
 }
 
 export interface OpenChannelResponse {
@@ -164,7 +164,7 @@ export interface TransferRequest {
   channel_id: string;
   from: string;
   to: string;
-  amount: string; // micro-USDC
+  amount: string; // wei
 }
 
 export interface ChannelState {
@@ -261,7 +261,7 @@ export interface WalletConnectResponse {
     verified: boolean;
     balances: {
       eth: string;
-      usdc: string;
+      ethWei: string;
     };
   };
 }
@@ -269,8 +269,9 @@ export interface WalletConnectResponse {
 export interface WalletBalanceResponse {
   success: boolean;
   data: {
+    address: string;
     eth: string;
-    usdc: string;
+    ethWei: string;
   };
 }
 
@@ -334,7 +335,7 @@ export interface WalletSettleResponse {
     status: string;
     tx_hash: string;
     final_balances: Record<string, number>;
-    settlement_result?: any;
+    settlement_result?: unknown;
     message: string;
   };
 }
@@ -372,10 +373,10 @@ export interface WalletInfoResponse {
     address: string;
     balances: {
       eth: string;
-      usdc: string;
+      ethWei: string;
     };
-    deposits: any[];
-    channels: any[];
+    deposits: unknown[];
+    channels: unknown[];
   };
 }
 

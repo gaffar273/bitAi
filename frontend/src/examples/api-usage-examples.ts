@@ -5,7 +5,7 @@
  * from the backend in your React components.
  */
 
-import { api, toMicroUsdc, fromMicroUsdc } from '../services/api';
+import { api, toWei, fromWei } from '../services/api';
 import type {
     RegisterAgentRequest,
     ExecuteWorkflowRequest,
@@ -198,15 +198,15 @@ export const comparePricing = async (serviceType: ServiceType) => {
 export const openPaymentChannel = async (
     agentA: string,
     agentB: string,
-    balanceUsdcA: number = 1, // 1 USDC
-    balanceUsdcB: number = 1  // 1 USDC
+    balanceEthA: number = 0.001, // 0.001 ETH
+    balanceEthB: number = 0.001  // 0.001 ETH
 ) => {
     try {
         const channelData: OpenChannelRequest = {
             agent_a: agentA,
             agent_b: agentB,
-            balance_a: toMicroUsdc(balanceUsdcA),
-            balance_b: toMicroUsdc(balanceUsdcB)
+            balance_a: toWei(balanceEthA),
+            balance_b: toWei(balanceEthB)
         };
 
         const response = await api.openChannel(channelData);
@@ -229,8 +229,8 @@ export const getChannelState = async (channelId: string) => {
 
         console.log('Channel state:');
         console.log('Status:', channel.status);
-        console.log('Agent A balance:', fromMicroUsdc(channel.balanceA), 'USDC');
-        console.log('Agent B balance:', fromMicroUsdc(channel.balanceB), 'USDC');
+        console.log('Agent A balance:', fromWei(channel.balanceA), 'ETH');
+        console.log('Agent B balance:', fromWei(channel.balanceB), 'ETH');
         console.log('Nonce:', channel.nonce);
 
         return channel;
@@ -243,14 +243,14 @@ export const sendPayment = async (
     channelId: string,
     from: string,
     to: string,
-    amountUsdc: number
+    amountEth: number
 ) => {
     try {
         const response = await api.transfer({
             channel_id: channelId,
             from,
             to,
-            amount: toMicroUsdc(amountUsdc)
+            amount: toWei(amountEth)
         });
 
         const result = response.data.data;
@@ -351,8 +351,8 @@ export const completeExample = async () => {
     const channel = await openPaymentChannel(
         orchestrator.wallet,
         scraper.wallet,
-        10, // 10 USDC
-        10  // 10 USDC
+        0.01, // 0.01 ETH
+        0.01  // 0.01 ETH
     );
 
     if (!channel) {
