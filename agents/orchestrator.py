@@ -3,6 +3,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from dotenv import load_dotenv
 from summarizer import SummarizerAgent
+from translator import Translator
+from pdf_loader import PDFLoaderAgent
 
 load_dotenv()
 
@@ -12,7 +14,9 @@ class UniversalOrchestrator:
         self.llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
         self.wallet = wallet
         self.specialists = {
-            "summarizer": SummarizerAgent()
+            "summarizer": SummarizerAgent(),
+            "translator": Translator(),
+            "pdf_loader": PDFLoaderAgent()
         }
        
     def run(self, user_query):
@@ -63,5 +67,5 @@ class UniversalOrchestrator:
 
 if __name__ == "__main__":
     orchestrator = UniversalOrchestrator(wallet="ORCHESTRATOR_WALLET_ADDRESS")
-    final_output = orchestrator.run("Summarize the following text: 'Technology has transformed modern education by making learning more accessible and flexible. Online classes, digital libraries, and educational apps allow students to study from anywhere and learn at their own pace. Personalized learning systems use data and AI to support students based on their performance, helping teachers focus more on guidance. However, technology also brings challenges such as increased screen time, unequal access to devices, and overdependence on automated tools. When used responsibly, technology remains a powerful aid in improving the quality and reach of education'")
+    final_output = orchestrator.run("extract from the pdf using pdf_loader then Summarize it")
     print(f"\n[Orchestrator] Final Output:\n{final_output}")
