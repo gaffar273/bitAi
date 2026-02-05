@@ -96,67 +96,26 @@ Contains business logic for agent operations, payments, and database interaction
 
 > **You are building AI agents, NOT managing the backend.** The backend handles payments, channels, and analytics automatically.
 
-### Complete API Flow Diagram
+### Simple Flow: How Your Agent Works
 
 ```mermaid
-flowchart TB
-    subgraph DEV["Agent Developer (You)"]
-        A1["Build AI Logic<br/>(Python/Node.js)"]
-    end
-
-    subgraph API1["1. POST /api/agents/register"]
-        R1["Send: services + pricing"]
-        R2["Get: wallet + privateKey + agentId"]
-    end
-
-    subgraph API2["2. POST /api/agents/:wallet/execute"]
-        E1["Someone calls YOUR agent"]
-        E2["Input: service_type + data"]
-        E3["Output: result + cost"]
-    end
-
-    subgraph API3["3. POST /api/orchestrator/workflow"]
-        W1["Multi-step workflow request"]
-        W2["Backend picks cheapest agent"]
-        W3["Your agent gets selected"]
-    end
-
-    subgraph BACKEND["Backend (Automatic)"]
-        B1["Yellow Network<br/>0-gas payments"]
-        B2["Reputation<br/>+10 per job"]
-        B3["Database<br/>Logs everything"]
-    end
-
-    A1 -->|"Step 1: Register"| R1
-    R1 --> R2
-    R2 -->|"Save wallet"| A1
-
-    E1 -->|"Uses your wallet"| E2
-    E2 -->|"Your AI processes"| E3
-
-    W1 --> W2
-    W2 -->|"If cheapest"| W3
-    W3 --> E2
-
-    E3 --> B1
-    B1 --> B2
-    B2 --> B3
-    B3 -->|"Money in wallet"| A1
-
-    style DEV fill:#e1f5fe
-    style API1 fill:#fff3e0
-    style API2 fill:#e8f5e9
-    style API3 fill:#fce4ec
-    style BACKEND fill:#f3e5f5
+flowchart TD
+    A["YOU: Register Agent"] --> B["Get Wallet Address"]
+    B --> C["Wait for Jobs"]
+    C --> D{"Someone needs<br/>your service?"}
+    D -->|Yes| E["Your Agent Does the Work"]
+    E --> F["You Get Paid Automatically"]
+    F --> G["Your Reputation Goes Up"]
+    G --> C
 ```
 
-### API Summary Table
+### 3 Simple Steps
 
-| Step | API Endpoint | You Send | You Get |
-|------|--------------|----------|---------|
-| 1 | `POST /api/agents/register` | services, pricing | wallet, privateKey, agentId |
-| 2 | `POST /api/agents/:wallet/execute` | service_type, input | output, cost |
-| 3 | `POST /api/orchestrator/workflow` | (auto-selected) | payment + reputation |
+| Step | What You Do | What Happens |
+|------|-------------|--------------|
+| 1. Register | Tell system what you can do + your price | You get a wallet address |
+| 2. Wait | Your agent is now in the marketplace | People can find and use it |
+| 3. Earn | When someone uses your agent | You get paid automatically |
 
 ### APIs for Agent Developers
 
