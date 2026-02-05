@@ -28,7 +28,7 @@ router.get('/transactions', async (req: Request, res: Response) => {
         const limit = parseInt(req.query.limit as string) || 50;
         const offset = parseInt(req.query.offset as string) || 0;
 
-        const transactions = await YellowService.getTransactions(limit, offset);
+        const transactions = await YellowService.getTransactions(undefined, limit, offset);
 
         res.json({
             success: true,

@@ -179,4 +179,74 @@ All Day 2 backend tasks completed:
 - **Price Floors**: Minimum prices per service type to prevent race-to-bottom
 - **Disputes**: Schema ready for automatic + manual dispute handling
 
+---
+
+## Phase 8: Base Sepolia On-Chain Settlement (Completed)
+
+> Real blockchain settlement on Base Sepolia testnet
+
+### Completed Tasks
+- [x] Add Base Sepolia configuration (RPC, Chain ID, Explorer)
+- [x] Implement `settleOnChain()` in YellowService using ethers.js
+- [x] Create `POST /api/payments/settle/onchain` endpoint
+- [x] Real transaction submission with tx hash and explorer link
+- [x] Wallet balance checking before settlement
+
+### Configuration (.env)
+```env
+BASE_SEPOLIA_RPC=https://sepolia.base.org
+BASE_SEPOLIA_CHAIN_ID=84532
+BASE_SEPOLIA_EXPLORER=https://sepolia.basescan.org
+PRIVATE_KEY=your_wallet_private_key
+```
+
+### Settlement Options
+| Method | Endpoint | Gas Cost | Use Case |
+|--------|----------|----------|----------|
+| Yellow ClearNode | `/api/payments/settle` | ~$0.01 (batched) | Production |
+| Base Sepolia Direct | `/api/payments/settle/onchain` | ~$0.001 | Testing/Demo |
+
+### New Files/Updates
+| File | Changes |
+|------|---------|
+| `config/index.ts` | Added `baseSepolia` config object |
+| `YellowService.ts` | Added `settleOnChain()` method |
+| `routes/payments.ts` | Added `/settle/onchain` endpoint |
+
+---
+
+## Phase 9: Wallet Connect APIs (Completed)
+
+> User wallet connection for deposits and client-signed settlements
+
+### Completed Tasks
+- [x] Create `WalletService.ts` for wallet operations
+- [x] Wallet signature verification via EIP-191
+- [x] Balance checking (ETH + USDC) from Base Sepolia RPC
+- [x] Deposit tracking for USDC
+- [x] Yellow channel funding with client private key
+- [x] Client-signed settlement endpoints
+
+### New API Endpoints
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/wallet/connect` | Verify wallet ownership via signature |
+| `GET /api/wallet/:address/balance` | Get ETH + USDC balances |
+| `POST /api/wallet/:address/deposit` | Record USDC deposit |
+| `GET /api/wallet/:address/channels` | List active Yellow channels |
+| `POST /api/wallet/:address/fund-channel` | Create Yellow channel (client signs) |
+| `POST /api/wallet/:address/settle` | Settle channel (client signs) |
+| `POST /api/wallet/:address/settle/onchain` | On-chain settlement (client signs) |
+
+### New Files Created
+| File | Purpose |
+|------|---------|
+| `services/WalletService.ts` | Wallet verification, balances, deposits |
+| `routes/wallet.ts` | Wallet API endpoints |
+| `docs/wallet-api-guide.md` | Frontend integration guide |
+
+### Client Wallet Settlement
+- Settlement uses **client's private key** for signing
+- Supports both Yellow ClearNode and on-chain Base Sepolia settlement
+- Channel funding also accepts optional client private key
 

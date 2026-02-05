@@ -10,8 +10,21 @@ export const config = {
     // Yellow Network (ClearNode)
     yellowWsUrl: process.env.YELLOW_WS_URL || 'wss://clearnet-sandbox.yellow.com/ws',
 
-    // Wallet
+    // Wallet (for server-side signing)
     privateKey: process.env.PRIVATE_KEY || '',
+
+    // Base Sepolia Testnet (for on-chain settlement)
+    baseSepolia: {
+        rpcUrl: process.env.BASE_SEPOLIA_RPC || 'https://sepolia.base.org',
+        chainId: parseInt(process.env.BASE_SEPOLIA_CHAIN_ID || '84532', 10),
+        explorer: process.env.BASE_SEPOLIA_EXPLORER || 'https://sepolia.basescan.org',
+    },
+
+    // USDC Contract on Base Sepolia
+    usdcContract: process.env.USDC_CONTRACT_ADDRESS || '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+
+    // Default orchestrator address for wallet channels
+    defaultOrchestratorAddress: process.env.DEFAULT_ORCHESTRATOR_ADDRESS || '',
 
     // Database (Neon Serverless or PostgreSQL)
     databaseUrl: process.env.DATABASE_URL || '',

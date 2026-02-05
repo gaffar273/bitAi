@@ -7,6 +7,7 @@ import agentsRouter from './routes/agents';
 import paymentsRouter from './routes/payments';
 import analyticsRouter from './routes/analytics';
 import orchestratorRouter from './routes/orchestrator';
+import walletRouter from './routes/wallet';
 
 // Import database service
 import { initDatabase } from './services/DatabaseService';
@@ -27,6 +28,7 @@ app.use('/api/agents', agentsRouter);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/orchestrator', orchestratorRouter);
+app.use('/api/wallet', walletRouter);
 
 // Start server with async initialization
 async function startServer() {
@@ -66,6 +68,9 @@ async function startServer() {
     - GET  /api/analytics/transactions
     - POST /api/orchestrator/workflow
     - GET  /api/orchestrator/pricing/:serviceType
+    - POST /api/wallet/connect
+    - GET  /api/wallet/:address/balance
+    - POST /api/wallet/:address/fund-channel
   
   ================================================
   `);
