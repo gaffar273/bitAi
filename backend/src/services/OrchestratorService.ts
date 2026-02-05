@@ -1,6 +1,7 @@
 import { AgentService } from './AgentService';
-import { PaymentService } from './PaymentService';
+import { PaymentService, RevenueShareService } from './PaymentService';
 import { TransactionLogger } from './TransactionLogger';
+import { ContributionMetrics } from '../types';
 
 // Workflow step definition
 export interface WorkflowStep {
@@ -15,6 +16,9 @@ export interface WorkflowResult {
     steps: StepResult[];
     totalCost: number;
     totalDuration: number;
+    revenueDistribution?: {
+        participants: { wallet: string; share: number; payment: number }[];
+    };
     error?: string;
 }
 
@@ -26,7 +30,9 @@ export interface StepResult {
     output: unknown;
     cost: number;
     duration: number;
+    outputSizeBytes: number;
     paymentTxId?: string;
+    metrics?: ContributionMetrics;
 }
 
 export class OrchestratorService {
@@ -114,7 +120,19 @@ export class OrchestratorService {
                 totalCost += execution.cost;
                 totalDuration += stepDuration;
 
-                // 6. Store result
+                // Calculate output size for metrics
+                const outputStr = JSON.stringify(execution.output);
+                const outputSizeBytes = new TextEncoder().encode(outputStr).length;
+
+                // Create contribution metrics
+                const metrics = RevenueShareService.createMetrics(
+                    step.serviceType,
+                    stepDuration,
+                    outputSizeBytes,
+                    1.0 // Default quality score
+                );
+
+                // 6. Store result with metrics
                 results.push({
                     step: i + 1,
                     serviceType: step.serviceType,
@@ -123,15 +141,34 @@ export class OrchestratorService {
                     output: execution.output,
                     cost: execution.cost,
                     duration: stepDuration,
+                    outputSizeBytes,
                     paymentTxId,
+                    metrics,
                 });
 
                 previousOutput = execution.output;
             }
 
             const workflowDuration = Date.now() - startTime;
-            console.log(`\n[Orchestrator] ✓ Workflow completed in ${workflowDuration}ms`);
+            console.log(`\n[Orchestrator] Workflow completed in ${workflowDuration}ms`);
             console.log(`[Orchestrator] Total cost: $${totalCost} | Steps: ${results.length}`);
+
+            // Calculate revenue distribution using dynamic weights
+            const participants = results.map(r => ({
+                wallet: r.agentWallet,
+                serviceType: r.serviceType,
+                metrics: r.metrics!,
+            }));
+            const distribution = RevenueShareService.distributePayments(
+                'workflow-' + Date.now(),
+                totalCost,
+                participants
+            );
+
+            console.log(`[Orchestrator] Revenue distribution:`);
+            distribution.participants.forEach(p => {
+                console.log(`  - ${p.agentWallet.slice(0, 10)}... (${p.serviceType}): $${p.finalPayment.toFixed(4)} (${(p.normalizedWeight * 100).toFixed(1)}%)`);
+            });
 
             // Log workflow to database
             await TransactionLogger.logWorkflow(
@@ -157,6 +194,13 @@ export class OrchestratorService {
                 steps: results,
                 totalCost,
                 totalDuration: workflowDuration,
+                revenueDistribution: {
+                    participants: distribution.participants.map(p => ({
+                        wallet: p.agentWallet,
+                        share: p.normalizedWeight,
+                        payment: p.finalPayment,
+                    })),
+                },
             };
 
         } catch (error: unknown) {

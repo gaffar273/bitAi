@@ -105,3 +105,59 @@ export interface ApiResponse<T> {
     data?: T;
     error?: string;
 }
+
+// ========================================
+// Revenue Share Payment Types
+// ========================================
+
+export interface WorkflowPayment {
+    id: string;
+    workflowId: string;
+    totalAmount: number;
+    participants: ParticipantShare[];
+    distributedAt: Date;
+}
+
+export interface ParticipantShare {
+    agentWallet: string;
+    serviceType: string;
+    rawWeight: number;
+    normalizedWeight: number;
+    finalPayment: number;
+    metrics: ContributionMetrics;
+}
+
+export interface ContributionMetrics {
+    complexityScore: number;    // 0.1 - 1.0 based on service type
+    processingTimeMs: number;   // Actual time taken
+    outputSizeBytes: number;    // Size of output data
+    qualityScore: number;       // 0.0 - 1.0 (default 1.0, reduced on issues)
+}
+
+export interface Dispute {
+    id: string;
+    workflowId: string;
+    initiator: string;
+    reason: 'quality' | 'timeout' | 'incomplete' | 'other';
+    status: 'pending' | 'auto_resolved' | 'manual_review' | 'resolved';
+    resolution?: 'refund' | 'partial_refund' | 'paid' | 'rejected';
+    evidence?: string;
+    createdAt: Date;
+    resolvedAt?: Date;
+}
+
+// Price floors per service type (in USDC)
+export const PRICE_FLOORS: Record<string, number> = {
+    translation: 0.01,
+    summarizer: 0.01,
+    scraper: 0.005,
+    image_gen: 0.03,
+};
+
+// Complexity scores per service type (base values)
+export const COMPLEXITY_SCORES: Record<string, number> = {
+    scraper: 0.3,
+    summarizer: 0.5,
+    translation: 0.6,
+    image_gen: 0.8,
+};
