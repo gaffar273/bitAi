@@ -1,0 +1,13 @@
+
+
+
+
+# Environment variables
+agents/.env
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
