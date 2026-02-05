@@ -104,11 +104,16 @@ export interface WorkflowResult {
   steps: WorkflowStepResult[];
   totalCost: number;
   totalDuration: number;
+  revenueDistribution?: {
+    participants: { wallet: string; share: number; payment: number }[];
+  };
+  error?: string;
 }
 
 export interface ExecuteWorkflowResponse {
   success: boolean;
   data: WorkflowResult;
+  error?: string;
 }
 
 export interface PricingComparison {

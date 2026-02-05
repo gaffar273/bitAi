@@ -1,29 +1,43 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { WorkflowStep, WorkflowResult, Agent } from '../types';
 import { api } from '../services/api';
 
 const SERVICE_CONFIGS = {
-  scraper: { emoji: '🔍', name: 'Web Scraper', color: 'blue', price: 0.02 },
-  summarizer: { emoji: '📝', name: 'Summarizer', color: 'purple', price: 0.03 },
-  translation: { emoji: '🌍', name: 'Translator', color: 'green', price: 0.05 },
-  image_gen: { emoji: '🎨', name: 'Image Generator', color: 'pink', price: 0.10 },
-  orchestrator: { emoji: '🎯', name: 'Orchestrator', color: 'orange', price: 0.00 },
+  scraper: { emoji: '🔍', name: 'Web Scraper', color: 'blue', price: 0.01, placeholder: 'Enter URL to scrape...' },
+  summarizer: { emoji: '📝', name: 'Summarizer', color: 'purple', price: 0.02, placeholder: 'Enter text to summarize...' },
+  translation: { emoji: '🌍', name: 'Translator', color: 'green', price: 0.02, placeholder: 'Enter text to translate...' },
+  image_gen: { emoji: '🎨', name: 'Image Generator', color: 'pink', price: 0.05, placeholder: 'Describe the image...' },
 };
 
+type ServiceType = keyof typeof SERVICE_CONFIGS;
+
 export function WorkflowBuilder() {
-  const [steps, setSteps] = useState<WorkflowStep[]>([]);
+  const [steps, setSteps] = useState<{ serviceType: ServiceType }[]>([]);
+  const [inputText, setInputText] = useState('');
   const [executing, setExecuting] = useState(false);
   const [result, setResult] = useState<WorkflowResult | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  // Load agents on mount
-  useState(() => {
-    api.getAgents().then(res => setAgents(res.data.data));
-  });
+  // Load agents on mount - FIXED: using useEffect instead of useState
+  useEffect(() => {
+    api.getAgents()
+      .then(res => {
+        if (res.data.success) {
+          setAgents(res.data.data);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to load agents:', err);
+        setError('Failed to load agents. Is the backend running?');
+      });
+  }, []);
 
-  const addStep = (serviceType: WorkflowStep['serviceType']) => {
+  const addStep = (serviceType: ServiceType) => {
     setSteps([...steps, { serviceType }]);
+    setResult(null);
+    setError(null);
   };
 
   const removeStep = (index: number) => {
@@ -32,28 +46,45 @@ export function WorkflowBuilder() {
 
   const executeWorkflow = async () => {
     if (steps.length === 0) {
-      alert('Add at least one step to the workflow!');
+      setError('Add at least one step to the workflow!');
       return;
     }
 
-    // Get any agent as orchestrator (in real app, user would select)
+    if (!inputText.trim()) {
+      setError('Please enter some input text to process!');
+      return;
+    }
+
     if (agents.length === 0) {
-      alert('No agents available. Please register agents first.');
+      setError('No agents available. Please register agents first.');
       return;
     }
 
     setExecuting(true);
     setResult(null);
+    setError(null);
 
     try {
+      // Build workflow steps with input - first step gets the text, others chain
+      const workflowSteps: WorkflowStep[] = steps.map((step, index) => ({
+        serviceType: step.serviceType,
+        input: index === 0 ? { text: inputText, url: inputText, prompt: inputText } : undefined,
+      }));
+
       const response = await api.executeWorkflow({
         orchestratorWallet: agents[0].wallet,
-        steps
+        steps: workflowSteps
       });
-      setResult(response.data.data);
-    } catch (error) {
-      console.error('Workflow failed:', error);
-      alert('Workflow execution failed. Check console for details.');
+
+      if (response.data.success) {
+        setResult(response.data.data);
+      } else {
+        setError(response.data.error || 'Workflow execution failed');
+      }
+    } catch (err: unknown) {
+      console.error('Workflow failed:', err);
+      const message = err instanceof Error ? err.message : 'Workflow execution failed';
+      setError(message);
     } finally {
       setExecuting(false);
     }
@@ -63,15 +94,36 @@ export function WorkflowBuilder() {
     return sum + SERVICE_CONFIGS[step.serviceType].price;
   }, 0);
 
+  const getPlaceholder = () => {
+    if (steps.length === 0) return 'Add a step first, then enter your input here...';
+    return SERVICE_CONFIGS[steps[0].serviceType].placeholder;
+  };
+
   return (
     <div className="max-w-6xl mx-auto p-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-2">🔨 Workflow Builder</h1>
+        <h1 className="text-4xl font-bold mb-2">Workflow Builder</h1>
         <p className="text-gray-400">
-          Build multi-agent workflows with drag-and-drop simplicity
+          Build multi-agent workflows and execute them with real payments
         </p>
+        {agents.length > 0 && (
+          <p className="text-sm text-green-400 mt-2">
+            {agents.length} agents available for hire
+          </p>
+        )}
       </div>
+
+      {/* Error Display */}
+      {error && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 p-4 bg-red-900/30 border border-red-500 rounded-lg text-red-400"
+        >
+          {error}
+        </motion.div>
+      )}
 
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Left: Service Palette */}
@@ -83,8 +135,8 @@ export function WorkflowBuilder() {
                 key={key}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => addStep(key as WorkflowStep['serviceType'])}
-                className={`w-full p-4 rounded-lg border-2 border-${config.color}-500 bg-${config.color}-900/20 hover:bg-${config.color}-900/40 transition text-left flex items-center justify-between`}
+                onClick={() => addStep(key as ServiceType)}
+                className="w-full p-4 rounded-lg border-2 border-gray-600 bg-gray-800 hover:bg-gray-700 transition text-left flex items-center justify-between"
               >
                 <div className="flex items-center gap-3">
                   <span className="text-3xl">{config.emoji}</span>
@@ -107,22 +159,35 @@ export function WorkflowBuilder() {
             <h2 className="text-2xl font-semibold">Your Workflow</h2>
             {steps.length > 0 && (
               <div className="text-sm text-gray-400">
-                {steps.length} step{steps.length !== 1 ? 's' : ''} · ${totalCost.toFixed(2)} total
+                {steps.length} step{steps.length !== 1 ? 's' : ''} - ${totalCost.toFixed(2)} total
               </div>
             )}
           </div>
 
+          {/* Input Text Area */}
+          <div className="mb-4">
+            <label className="block text-sm text-gray-400 mb-2">
+              Input for Workflow
+            </label>
+            <textarea
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder={getPlaceholder()}
+              className="w-full h-32 p-4 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none resize-none"
+            />
+          </div>
+
           {/* Workflow Steps */}
-          <div className="bg-gray-800 rounded-lg p-6 min-h-[400px]">
+          <div className="bg-gray-800 rounded-lg p-6 min-h-[200px]">
             {steps.length === 0 ? (
               <div className="h-full flex items-center justify-center text-gray-500 text-center">
                 <div>
-                  <div className="text-6xl mb-4">👈</div>
-                  <p>Add services from the left to build your workflow</p>
+                  <div className="text-4xl mb-4">+</div>
+                  <p>Click a service on the left to add it</p>
                 </div>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <AnimatePresence>
                   {steps.map((step, index) => {
                     const config = SERVICE_CONFIGS[step.serviceType];
@@ -150,17 +215,16 @@ export function WorkflowBuilder() {
                           onClick={() => removeStep(index)}
                           className="text-red-400 hover:text-red-300 text-xl"
                         >
-                          ✕
+                          X
                         </button>
                       </motion.div>
                     );
                   })}
                 </AnimatePresence>
 
-                {/* Arrow connector */}
                 {steps.length > 1 && (
-                  <div className="text-center text-gray-600">
-                    ↓ Output flows to next step
+                  <div className="text-center text-gray-600 text-sm">
+                    Output flows from step 1 to step {steps.length}
                   </div>
                 )}
               </div>
@@ -173,7 +237,7 @@ export function WorkflowBuilder() {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={executeWorkflow}
-              disabled={executing}
+              disabled={executing || !inputText.trim()}
               className="w-full mt-6 py-4 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {executing ? (
@@ -182,7 +246,7 @@ export function WorkflowBuilder() {
                   Executing Workflow...
                 </span>
               ) : (
-                '▶️ Execute Workflow'
+                'Execute Workflow'
               )}
             </motion.button>
           )}
@@ -197,7 +261,7 @@ export function WorkflowBuilder() {
           className="mt-12 bg-green-900/20 border-2 border-green-500 rounded-xl p-8"
         >
           <h2 className="text-3xl font-bold mb-6 text-green-400">
-            ✅ Workflow Complete!
+            Workflow Complete!
           </h2>
 
           <div className="grid md:grid-cols-3 gap-6 mb-8">
@@ -209,9 +273,9 @@ export function WorkflowBuilder() {
             </div>
             <div className="text-center">
               <div className="text-4xl font-bold text-green-400">
-                ${result.totalCost.toFixed(2)}
+                ${result.totalCost.toFixed(4)}
               </div>
-              <div className="text-sm text-gray-400">Total Cost</div>
+              <div className="text-sm text-gray-400">Total Cost (USDC)</div>
             </div>
             <div className="text-center">
               <div className="text-4xl font-bold text-purple-400">
@@ -221,13 +285,15 @@ export function WorkflowBuilder() {
             </div>
           </div>
 
+          {/* Step Results */}
           <div className="space-y-4">
+            <h3 className="text-xl font-semibold">Step Details</h3>
             {result.steps.map((step, index) => (
               <div key={index} className="bg-gray-800 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">
-                      {SERVICE_CONFIGS[step.serviceType as keyof typeof SERVICE_CONFIGS].emoji}
+                      {SERVICE_CONFIGS[step.serviceType as ServiceType]?.emoji || '?'}
                     </span>
                     <div>
                       <div className="font-semibold">Step {step.step}</div>
@@ -238,19 +304,46 @@ export function WorkflowBuilder() {
                   </div>
                   <div className="text-right">
                     <div className="font-semibold text-green-400">
-                      ${step.cost.toFixed(2)}
+                      ${step.cost.toFixed(4)}
                     </div>
                     <div className="text-xs text-gray-400">
                       {step.duration}ms
                     </div>
                   </div>
                 </div>
-                <div className="text-xs text-gray-500">
-                  Agent: {step.agentWallet.slice(0, 10)}...
+                <div className="text-xs text-gray-500 mb-2">
+                  Agent: {step.agentWallet.slice(0, 10)}...{step.agentWallet.slice(-8)}
                 </div>
+                {/* Show output preview */}
+                {step.output && (
+                  <div className="mt-2 p-3 bg-gray-900 rounded text-sm text-gray-300 max-h-32 overflow-y-auto">
+                    {String(typeof step.output === 'string'
+                      ? (step.output as string).slice(0, 500) + ((step.output as string).length > 500 ? '...' : '')
+                      : JSON.stringify(step.output, undefined, 2).slice(0, 500))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
+
+          {/* Revenue Distribution */}
+          {result.revenueDistribution && (
+            <div className="mt-6 p-4 bg-gray-800 rounded-lg">
+              <h3 className="text-lg font-semibold mb-3">Revenue Distribution</h3>
+              <div className="space-y-2">
+                {result.revenueDistribution.participants.map((p, i) => (
+                  <div key={i} className="flex justify-between text-sm">
+                    <span className="text-gray-400">
+                      {p.wallet.slice(0, 10)}...
+                    </span>
+                    <span className="text-green-400">
+                      ${p.payment.toFixed(4)} ({(p.share * 100).toFixed(1)}%)
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </motion.div>
       )}
     </div>

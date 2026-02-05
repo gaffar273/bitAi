@@ -1,40 +1,65 @@
-from agents.base_agent import BaseAgent
+from base_agent import BaseAgent
+
 
 class TranslatorAgent(BaseAgent):
     def __init__(self):
-        # Name, Service Type, Price (per 100 words)
-        super().__init__("Translator", "translation", 0.05)
+        # Name, Service Type, Price in USDC (minimum floor: 0.01)
+        super().__init__("Translator", "translation", 0.02)
 
     def execute_service(self, input_data):
         # input_data is a dict like {'text': 'Hello', 'target_lang': 'es'}
-        prompt = f"Translate the following text to {input_data['target_lang']}: {input_data['text']}"
+        # or could be a string from orchestrator chaining
+        if isinstance(input_data, str):
+            text = input_data
+            target_lang = "English"
+        else:
+            text = input_data.get('text', str(input_data))
+            target_lang = input_data.get('target_lang', 'English')
+        prompt = f"Translate the following text to {target_lang}: {text}"
         return self.ask_ai(prompt)
+
 
 class ScraperAgent(BaseAgent):
     def __init__(self):
-        super().__init__("Scraper", "scraper", 0.02)
+        # Price in USDC (minimum floor: 0.005)
+        super().__init__("Scraper", "scraper", 0.01)
 
     def execute_service(self, input_data):
-        # In a real app, you'd use BeautifulSoup/Puppeteer here.
-        # For the demo, we simulate scraping the URL.
-        url = input_data['url']
+        # input_data could be dict with 'url' or just a string URL
+        if isinstance(input_data, str):
+            url = input_data
+        else:
+            url = input_data.get('url', str(input_data))
         prompt = f"Summarize the main content found at this URL: {url}"
         return self.ask_ai(prompt)
 
+
 class SummarizerAgent(BaseAgent):
     def __init__(self):
-        super().__init__("Summarizer", "summarizer", 0.03)
+        # Price in USDC (minimum floor: 0.01)
+        super().__init__("Summarizer", "summarizer", 0.02)
 
     def execute_service(self, input_data):
-        prompt = f"Provide a concise summary of this text: {input_data['text']}"
+        # input_data could be dict with 'text' or just a string
+        if isinstance(input_data, str):
+            text = input_data
+        else:
+            text = input_data.get('text', str(input_data))
+        prompt = f"Provide a concise summary of this text while keeping key technical terms: {text}"
         return self.ask_ai(prompt)
+
 
 class ImageGenAgent(BaseAgent):
     def __init__(self):
-        super().__init__("ImageGenerator", "image_gen", 0.10)
+        # Price in USDC (minimum floor: 0.03)
+        super().__init__("ImageGenerator", "image_gen", 0.05)
 
     def execute_service(self, input_data):
-        # Here you would call DALL-E or Midjourney API
-        prompt = f"Generate a detailed image description for: {input_data['prompt']}"
+        # input_data could be dict with 'prompt' or just a string
+        if isinstance(input_data, str):
+            prompt_text = input_data
+        else:
+            prompt_text = input_data.get('prompt', str(input_data))
+        prompt = f"Generate a detailed image description for: {prompt_text}"
         result = self.ask_ai(prompt)
         return f"IMAGE_URL_STUB: {result[:50]}..."
