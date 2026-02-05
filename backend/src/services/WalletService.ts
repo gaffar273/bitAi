@@ -62,12 +62,11 @@ export class WalletService {
         }
     }
 
-    // Get ETH + USDC balances on Base Sepolia
+    // Get ETH balance on Base Sepolia
     static async getBalances(address: string): Promise<{
         address: string;
         eth: string;
-        usdc: string;
-        usdcRaw: string;
+        ethWei: string;
     }> {
         try {
             const provider = new ethers.JsonRpcProvider(config.baseSepolia.rpcUrl);
@@ -76,25 +75,12 @@ export class WalletService {
             const ethBalance = await provider.getBalance(address);
             const ethFormatted = ethers.formatEther(ethBalance);
 
-            // Get USDC balance (ERC-20)
-            const usdcAddress = config.usdcContract;
-            const usdcAbi = [
-                'function balanceOf(address account) view returns (uint256)',
-                'function decimals() view returns (uint8)',
-            ];
-
-            const usdcContract = new ethers.Contract(usdcAddress, usdcAbi, provider);
-            const usdcBalance = await usdcContract.balanceOf(address);
-            const decimals = await usdcContract.decimals();
-            const usdcFormatted = ethers.formatUnits(usdcBalance, decimals);
-
-            console.log(`[Wallet] Balances for ${address}: ${ethFormatted} ETH, ${usdcFormatted} USDC`);
+            console.log(`[Wallet] Balance for ${address}: ${ethFormatted} ETH`);
 
             return {
                 address,
                 eth: ethFormatted,
-                usdc: usdcFormatted,
-                usdcRaw: usdcBalance.toString(),
+                ethWei: ethBalance.toString(),
             };
         } catch (error) {
             console.error('[Wallet] Error fetching balances:', error);
@@ -102,12 +88,12 @@ export class WalletService {
         }
     }
 
-    // Track USDC deposit
+    // Track ETH deposit
     static async trackDeposit(
         walletAddress: string,
         amount: string,
         txHash: string,
-        token: string = 'USDC'
+        token: string = 'ETH'
     ): Promise<DepositRecord> {
         const deposit: DepositRecord = {
             id: `dep-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
@@ -151,11 +137,11 @@ export class WalletService {
         status: string;
     }> {
         try {
-            // Convert USDC amount to micro-USDC (6 decimals)
+            // Convert ETH amount to wei (18 decimals)
             const amountFloat = parseFloat(amount);
-            const microUsdc = Math.floor(amountFloat * 1_000_000).toString();
+            const weiAmount = Math.floor(amountFloat * 1e18).toString();
 
-            console.log(`[Wallet] Creating Yellow channel: ${userAddress} -> ${partnerAddress}, amount: ${microUsdc} micro-USDC`);
+            console.log(`[Wallet] Creating Yellow channel: ${userAddress} -> ${partnerAddress}, amount: ${weiAmount} wei`);
 
             // Use client's private key if provided, otherwise fallback to system key for demo
             const signerKey = privateKey || config.privateKey;
@@ -164,7 +150,7 @@ export class WalletService {
             const { sessionId, channelId } = await YellowService.createSession(
                 userAddress,
                 partnerAddress,
-                microUsdc,
+                weiAmount,
                 '0', // Partner starts with 0
                 signerKey
             );
@@ -174,7 +160,7 @@ export class WalletService {
             return {
                 sessionId,
                 channelId,
-                userBalance: microUsdc,
+                userBalance: weiAmount,
                 status: 'open',
             };
         } catch (error) {

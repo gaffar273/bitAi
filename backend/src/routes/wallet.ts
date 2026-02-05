@@ -35,7 +35,7 @@ router.post('/connect', async (req: Request, res: Response) => {
                 verified: true,
                 balances: {
                     eth: balances.eth,
-                    usdc: balances.usdc,
+                    ethWei: balances.ethWei,
                 },
             },
         });

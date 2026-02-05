@@ -17,15 +17,19 @@ router.post('/channel/open', async (req: Request, res: Response) => {
             return;
         }
 
-        // Default balances (in micro-USDC, 6 decimals)
-        const balA = balance_a || '1000000'; // 1 USDC
-        const balB = balance_b || '1000000'; // 1 USDC
+        if (!balance_a || !balance_b) {
+            res.status(400).json({
+                success: false,
+                error: 'balance_a and balance_b are required (in wei)',
+            } as ApiResponse<null>);
+            return;
+        }
 
         const result = await YellowService.createSession(
             agent_a,
             agent_b,
-            balA,
-            balB,
+            balance_a,
+            balance_b,
             private_key // Optional - for SDK integration
         );
 

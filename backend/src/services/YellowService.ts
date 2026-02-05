@@ -109,10 +109,10 @@ export class YellowService {
             nonce,
         };
 
-        // Initial allocations (balances in micro-USDC)
+        // Initial allocations (balances in wei - 18 decimals)
         const allocations = [
-            { participant: userAddress, asset: 'usdc', amount: userBalance },
-            { participant: partnerAddress, asset: 'usdc', amount: partnerBalance },
+            { participant: userAddress, asset: 'eth', amount: userBalance },
+            { participant: partnerAddress, asset: 'eth', amount: partnerBalance },
         ];
 
         // Create and send session message using Nitrolite SDK
@@ -236,12 +236,12 @@ export class YellowService {
         const allocations = [
             {
                 participant: channel.agentA,
-                asset: 'usdc',
+                asset: 'eth',
                 amount: channel.balanceA.toString(),
             },
             {
                 participant: channel.agentB,
-                asset: 'usdc',
+                asset: 'eth',
                 amount: channel.balanceB.toString(),
             },
         ];
