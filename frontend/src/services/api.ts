@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { WorkflowStep } from '../types';
 
 const API_BASE = 'http://localhost:5000';
 
@@ -22,5 +23,12 @@ export const api = {
   getTransactions: (limit = 50) => 
     axios.get(`${API_BASE}/api/analytics/transactions`, { 
       params: { limit } 
+    }),
+
+  // Workflow (ADD THIS)
+  executeWorkflow: (orchestratorWallet: string, steps: WorkflowStep[]) =>
+    axios.post(`${API_BASE}/api/orchestrator/workflow`, {
+      orchestratorWallet,
+      steps
     }),
 };
