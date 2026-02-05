@@ -1,14 +1,19 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Search, FileText, Globe, Palette, Target, Play, Plus, X, ArrowDown, ChevronRight, Info } from 'lucide-react';
 import type { WorkflowStep, WorkflowResult, Agent } from '../types';
 import { api } from '../services/api';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const SERVICE_CONFIGS = {
-  scraper: { emoji: '🔍', name: 'Web Scraper', color: 'blue', price: 0.02 },
-  summarizer: { emoji: '📝', name: 'Summarizer', color: 'purple', price: 0.03 },
-  translation: { emoji: '🌍', name: 'Translator', color: 'green', price: 0.05 },
-  image_gen: { emoji: '🎨', name: 'Image Generator', color: 'pink', price: 0.10 },
-  orchestrator: { emoji: '🎯', name: 'Orchestrator', color: 'orange', price: 0.00 },
+  scraper: { icon: Search, name: 'Web Scraper', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', price: 0.02 },
+  summarizer: { icon: FileText, name: 'Summarizer', color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', price: 0.03 },
+  translation: { icon: Globe, name: 'Translator', color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20', price: 0.05 },
+  image_gen: { icon: Palette, name: 'Image Generator', color: 'text-pink-400', bg: 'bg-pink-500/10', border: 'border-pink-500/20', price: 0.10 },
+  orchestrator: { icon: Target, name: 'Orchestrator', color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20', price: 0.00 },
 };
 
 export function WorkflowBuilder() {
@@ -31,12 +36,8 @@ export function WorkflowBuilder() {
   };
 
   const executeWorkflow = async () => {
-    if (steps.length === 0) {
-      alert('Add at least one step to the workflow!');
-      return;
-    }
+    if (steps.length === 0) return;
 
-    // Get any agent as orchestrator (in real app, user would select)
     if (agents.length === 0) {
       alert('No agents available. Please register agents first.');
       return;
@@ -53,7 +54,6 @@ export function WorkflowBuilder() {
       setResult(response.data.data);
     } catch (error) {
       console.error('Workflow failed:', error);
-      alert('Workflow execution failed. Check console for details.');
     } finally {
       setExecuting(false);
     }
@@ -64,195 +64,253 @@ export function WorkflowBuilder() {
   }, 0);
 
   return (
-    <div className="max-w-6xl mx-auto p-8">
+    <div className="max-w-6xl mx-auto p-4 space-y-8">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-2">🔨 Workflow Builder</h1>
+      <div>
+        <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
+          <Target className="w-8 h-8 text-primary" />
+          Workflow Builder
+        </h1>
         <p className="text-gray-400">
-          Build multi-agent workflows with drag-and-drop simplicity
+          Orchestrate multi-agent autonomous workflows
         </p>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-8">
+      <div className="grid lg:grid-cols-12 gap-8">
         {/* Left: Service Palette */}
-        <div>
-          <h2 className="text-2xl font-semibold mb-4">Available Services</h2>
-          <div className="space-y-3">
-            {Object.entries(SERVICE_CONFIGS).map(([key, config]) => (
-              <motion.button
-                key={key}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => addStep(key as WorkflowStep['serviceType'])}
-                className={`w-full p-4 rounded-lg border-2 border-${config.color}-500 bg-${config.color}-900/20 hover:bg-${config.color}-900/40 transition text-left flex items-center justify-between`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-3xl">{config.emoji}</span>
-                  <div>
-                    <div className="font-semibold">{config.name}</div>
-                    <div className="text-sm text-gray-400">
-                      ${config.price.toFixed(2)} per task
+        <div className="lg:col-span-4 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Services</CardTitle>
+              <CardDescription>Click to add tasks to workflow</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {Object.entries(SERVICE_CONFIGS).map(([key, config]) => {
+                const Icon = config.icon;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => addStep(key as WorkflowStep['serviceType'])}
+                    className={`
+                      w-full p-4 rounded-lg border transition-all duration-200
+                      hover:scale-[1.02] active:scale-[0.98]
+                      flex items-center justify-between group
+                      ${config.bg} ${config.border}
+                    `}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-md bg-gray-900/50 ${config.color}`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div className="text-left">
+                        <div className="font-medium text-white group-hover:text-blue-200 transition-colors">
+                          {config.name}
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          ${config.price.toFixed(2)} / task
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-                <span className="text-2xl text-gray-500">+</span>
-              </motion.button>
-            ))}
-          </div>
+                    <Plus className={`w-5 h-5 ${config.color} opacity-0 group-hover:opacity-100 transition-opacity`} />
+                  </button>
+                );
+              })}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Right: Workflow Canvas */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-semibold">Your Workflow</h2>
-            {steps.length > 0 && (
-              <div className="text-sm text-gray-400">
-                {steps.length} step{steps.length !== 1 ? 's' : ''} · ${totalCost.toFixed(2)} total
+        <div className="lg:col-span-8">
+          <Card className="h-full flex flex-col">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6">
+              <div>
+                <CardTitle>Workflow Sequence</CardTitle>
+                <CardDescription>
+                  {steps.length > 0
+                    ? `${steps.length} steps · Est. Cost: $${totalCost.toFixed(2)}`
+                    : 'Build your agent pipeline'}
+                </CardDescription>
               </div>
-            )}
-          </div>
+              {steps.length > 0 && (
+                <Button
+                  onClick={executeWorkflow}
+                  disabled={executing}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {executing ? (
+                    <>Running Pipeline...</>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4 mr-2 fill-current" />
+                      Execute
+                    </>
+                  )}
+                </Button>
+              )}
+            </CardHeader>
 
-          {/* Workflow Steps */}
-          <div className="bg-gray-800 rounded-lg p-6 min-h-[400px]">
-            {steps.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-gray-500 text-center">
-                <div>
-                  <div className="text-6xl mb-4">👈</div>
-                  <p>Add services from the left to build your workflow</p>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <AnimatePresence>
-                  {steps.map((step, index) => {
-                    const config = SERVICE_CONFIGS[step.serviceType];
-                    return (
-                      <motion.div
-                        key={index}
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, x: 100 }}
-                        className="bg-gray-700 rounded-lg p-4 flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center font-bold">
-                            {index + 1}
-                          </div>
-                          <span className="text-2xl">{config.emoji}</span>
-                          <div>
-                            <div className="font-semibold">{config.name}</div>
-                            <div className="text-sm text-gray-400">
-                              ${config.price.toFixed(2)}
-                            </div>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => removeStep(index)}
-                          className="text-red-400 hover:text-red-300 text-xl"
-                        >
-                          ✕
-                        </button>
-                      </motion.div>
-                    );
-                  })}
-                </AnimatePresence>
+            <CardContent className="flex-1">
+              <ScrollArea className="h-[500px] pr-4">
+                {steps.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-gray-500 border-2 border-dashed border-gray-800 rounded-lg min-h-[300px]">
+                    <div className="p-4 bg-gray-900/50 rounded-full mb-4">
+                      <Target className="w-8 h-8 text-gray-600" />
+                    </div>
+                    <p className="font-medium mb-1">Workflow is empty</p>
+                    <p className="text-sm">Select services from the left panel to begin</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4 pb-4">
+                    <AnimatePresence mode='popLayout'>
+                      {steps.map((step, index) => {
+                        const config = SERVICE_CONFIGS[step.serviceType];
+                        const Icon = config.icon;
 
-                {/* Arrow connector */}
-                {steps.length > 1 && (
-                  <div className="text-center text-gray-600">
-                    ↓ Output flows to next step
+                        return (
+                          <div key={index} className="relative group">
+                            {index > 0 && (
+                              <div className="flex justify-center py-2 relative z-0">
+                                <ArrowDown className="w-5 h-5 text-gray-700" />
+                              </div>
+                            )}
+
+                            <motion.div
+                              layout
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.95 }}
+                              className={`
+                                relative z-10 p-4 rounded-lg border bg-gray-900/50 backdrop-blur-sm
+                                flex items-center justify-between group/card
+                                ${config.border}
+                              `}
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-sm font-mono border border-gray-700">
+                                  {index + 1}
+                                </div>
+                                <div className={`p-2 rounded-md bg-gray-950 ${config.color}`}>
+                                  <Icon className="w-5 h-5" />
+                                </div>
+                                <div>
+                                  <div className="font-medium">{config.name}</div>
+                                  <div className="text-xs text-gray-500 font-mono">
+                                    Agent Task
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-4">
+                                <span className="text-sm font-mono text-gray-400">
+                                  ${config.price.toFixed(2)}
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => removeStep(index)}
+                                  className="text-gray-500 hover:text-red-400 hover:bg-red-950/30"
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </motion.div>
+                          </div>
+                        );
+                      })}
+                    </AnimatePresence>
                   </div>
                 )}
-              </div>
-            )}
-          </div>
-
-          {/* Execute Button */}
-          {steps.length > 0 && (
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={executeWorkflow}
-              disabled={executing}
-              className="w-full mt-6 py-4 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {executing ? (
-                <span className="flex items-center justify-center gap-2">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  Executing Workflow...
-                </span>
-              ) : (
-                '▶️ Execute Workflow'
-              )}
-            </motion.button>
-          )}
+              </ScrollArea>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
-      {/* Results */}
-      {result && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mt-12 bg-green-900/20 border-2 border-green-500 rounded-xl p-8"
-        >
-          <h2 className="text-3xl font-bold mb-6 text-green-400">
-            ✅ Workflow Complete!
-          </h2>
-
-          <div className="grid md:grid-cols-3 gap-6 mb-8">
-            <div className="text-center">
-              <div className="text-4xl font-bold text-blue-400">
-                {result.steps.length}
-              </div>
-              <div className="text-sm text-gray-400">Steps Executed</div>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-green-400">
-                ${result.totalCost.toFixed(2)}
-              </div>
-              <div className="text-sm text-gray-400">Total Cost</div>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-purple-400">
-                {(result.totalDuration / 1000).toFixed(1)}s
-              </div>
-              <div className="text-sm text-gray-400">Total Time</div>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {result.steps.map((step, index) => (
-              <div key={index} className="bg-gray-800 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">
-                      {SERVICE_CONFIGS[step.serviceType as keyof typeof SERVICE_CONFIGS].emoji}
-                    </span>
-                    <div>
-                      <div className="font-semibold">Step {step.step}</div>
-                      <div className="text-sm text-gray-400 capitalize">
-                        {step.serviceType.replace('_', ' ')}
-                      </div>
-                    </div>
+      {/* Results Section */}
+      <AnimatePresence>
+        {result && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <Card className="border-green-500/30 bg-green-950/5">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-500/10 rounded-full text-green-500">
+                    <CheckCircle2 className="w-6 h-6" />
                   </div>
-                  <div className="text-right">
-                    <div className="font-semibold text-green-400">
-                      ${step.cost.toFixed(2)}
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      {step.duration}ms
-                    </div>
+                  <div>
+                    <CardTitle className="text-green-400">Execution Successful</CardTitle>
+                    <CardDescription>Workflow completed in {(result.totalDuration / 1000).toFixed(2)}s</CardDescription>
                   </div>
                 </div>
-                <div className="text-xs text-gray-500">
-                  Agent: {step.agentWallet.slice(0, 10)}...
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-4 gap-4 mb-6">
+                  <div className="p-4 rounded-lg bg-gray-900/50 border border-gray-800 text-center">
+                    <div className="text-2xl font-bold text-white">{result.steps.length}</div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wider">Steps</div>
+                  </div>
+                  <div className="p-4 rounded-lg bg-gray-900/50 border border-gray-800 text-center">
+                    <div className="text-2xl font-bold text-green-400">${result.totalCost.toFixed(2)}</div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wider">Total Cost</div>
+                  </div>
+                  <div className="p-4 rounded-lg bg-gray-900/50 border border-gray-800 text-center">
+                    <div className="text-2xl font-bold text-blue-400">{(result.totalDuration / 1000).toFixed(2)}s</div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wider">Duration</div>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
+
+                <div className="relative">
+                  <div className="absolute left-8 top-0 bottom-0 w-px bg-gray-800" />
+                  <div className="space-y-6 relative">
+                    {result.steps.map((step, index) => {
+                      const config = SERVICE_CONFIGS[step.serviceType];
+                      const Icon = config.icon;
+
+                      return (
+                        <div key={index} className="flex items-start gap-4">
+                          <div className={`
+                            relative z-10 w-16 h-16 rounded-xl flex items-center justify-center border-4 border-gray-950
+                            ${config.bg} ${config.color}
+                          `}>
+                            <Icon className="w-6 h-6" />
+                          </div>
+
+                          <div className="flex-1 pt-1.5">
+                            <Card className="bg-gray-900/50 border-gray-800">
+                              <CardContent className="p-4 flex items-center justify-between">
+                                <div>
+                                  <div className="font-medium text-white mb-1">
+                                    Step {step.step}: {config.name}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                                    <span className="font-mono">{step.agentWallet.slice(0, 8)}...</span>
+                                    <span>•</span>
+                                    <span>{step.duration}ms</span>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <Badge variant="outline" className={`${config.color} ${config.border} bg-transparent`}>
+                                    Success
+                                  </Badge>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+
+// Importing missing lucide icon
+import { CheckCircle2 } from 'lucide-react';

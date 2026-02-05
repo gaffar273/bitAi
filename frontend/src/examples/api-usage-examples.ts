@@ -1,5 +1,5 @@
 /**
- * AgentSwarm API Usage Examples
+ * Rogue Capital API Usage Examples
  * 
  * This file demonstrates how to use all the integrated APIs
  * from the backend in your React components.
@@ -328,7 +328,7 @@ export const getRecentTransactions = async (limit: number = 10) => {
 // ============================================
 
 export const completeExample = async () => {
-    console.log('=== AgentSwarm Complete Example ===\n');
+    console.log('=== Rogue Capital Complete Example ===\n');
 
     // 1. Check server health
     console.log('1. Checking server health...');

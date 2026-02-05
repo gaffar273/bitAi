@@ -1,6 +1,6 @@
 # Frontend API Integration
 
-Complete TypeScript integration for all AgentSwarm backend APIs.
+Complete TypeScript integration for all Rogue Capital backend APIs.
 
 ## 📁 Files
 
