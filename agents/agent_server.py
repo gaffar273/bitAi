@@ -17,6 +17,7 @@ CORS(app)
 # Import agents
 from summarizer import SummarizerAgent
 from translator import Translator
+from scraper import ScraperAgent
 
 # Try to import PDF loader (may fail if dependencies missing)
 try:
@@ -29,6 +30,7 @@ except Exception as e:
 # Initialize agents
 summarizer = SummarizerAgent()
 translator = Translator()
+scraper = ScraperAgent()
 
 
 @app.route('/health', methods=['GET'])
@@ -75,11 +77,8 @@ def execute():
                 result = {"output": "PDF Loader not available", "cost": 0.01}
                 
         elif service_type == 'scraper':
-            # Use summarizer as a simple scraper (describe URL content)
-            url = input_data.get('url') or str(input_data)
-            prompt = f"Describe what content might be found at this URL: {url}"
-            result = summarizer.execute(prompt)
-            result['cost'] = 0.02  # Scraper price
+            # Use real ScraperAgent
+            result = scraper.execute(input_data)
             
         else:
             return jsonify({
