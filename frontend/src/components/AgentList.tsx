@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Search, Filter } from 'lucide-react';
 import { api } from '../services/api';
-import type { Agent, ServiceType } from '../types';
+import type { Agent } from '../types';
 import { AgentCard } from './AgentCard';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';

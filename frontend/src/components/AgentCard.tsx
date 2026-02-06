@@ -150,17 +150,7 @@ function saveToHistory(entry: ExecutionEntry) {
   }
 }
 
-function formatOutput(output: unknown): string {
-  if (typeof output === 'string') return output;
-  if (typeof output === 'object' && output !== null) {
-    if ('output' in output) return String((output as { output: unknown }).output);
-    if ('translated' in output) return String((output as { translated: unknown }).translated);
-    if ('summary' in output) return String((output as { summary: unknown }).summary);
-    if ('data' in output) return JSON.stringify((output as { data: unknown }).data, null, 2);
-    return JSON.stringify(output, null, 2);
-  }
-  return String(output);
-}
+
 
 export function AgentCard({ agent }: Props) {
   const [open, setOpen] = useState(false);
@@ -200,12 +190,12 @@ export function AgentCard({ agent }: Props) {
   const config = SERVICE_CONFIGS[serviceType];
 
   // Helper function to format output based on service type
-  const formatOutput = (output: any, currentServiceType: string) => {
+  const formatOutput = (output: unknown, currentServiceType: string) => {
     if (!output) return <div className="text-gray-500">No output</div>;
 
     // Special formatting for scraper output
     if (currentServiceType === 'scraper' && typeof output === 'object') {
-      const { title, content, word_count, url, status, error } = output;
+      const { title, content, word_count, url, status, error } = output as any;
 
       if (error) {
         return (

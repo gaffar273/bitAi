@@ -97,7 +97,7 @@ export function PaymentDashboard({ wallet }: Props) {
   // Calculate totals
   const totalSpent = history.reduce((sum, h) => sum + (h.success ? h.cost : 0), 0);
   const successCount = history.filter(h => h.success).length;
-  const failCount = history.filter(h => !h.success).length;
+
 
   if (!wallet.address) {
     return (

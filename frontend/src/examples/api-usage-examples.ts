@@ -270,9 +270,13 @@ export const settleChannel = async (channelId: string) => {
         const response = await api.settleChannel({ channel_id: channelId });
         const result = response.data.data;
 
-        console.log('Channel settled!');
-        console.log('Transaction hash:', result.tx_hash);
-        console.log('Final balances:', result.final_state.balances);
+        if ('tx_hash' in result) {
+            console.log('Channel settled!');
+            console.log('Transaction hash:', result.tx_hash);
+            console.log('Final balances:', result.final_state.balances);
+        } else {
+            console.log('Client signing required:', result.message);
+        }
 
         return result;
     } catch (error) {
