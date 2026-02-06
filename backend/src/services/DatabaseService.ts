@@ -153,8 +153,21 @@ export async function initDatabase() {
                 ('translation', 0.01),
                 ('summarizer', 0.01),
                 ('scraper', 0.005),
-                ('image_gen', 0.03)
+                ('image_gen', 0.03),
+                ('pdf_loader', 0.01)
             ON CONFLICT (service_type) DO NOTHING
+        `;
+
+        // File uploads (Cloud storage in DB)
+        await sql`
+            CREATE TABLE IF NOT EXISTS file_uploads (
+                id VARCHAR(255) PRIMARY KEY,
+                filename VARCHAR(255) NOT NULL,
+                data TEXT NOT NULL, -- Storing as Base64 string
+                mime_type VARCHAR(100) DEFAULT 'application/pdf',
+                size INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
         `;
 
         console.log('[Database] Schema initialized successfully');

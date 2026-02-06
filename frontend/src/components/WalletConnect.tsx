@@ -39,9 +39,17 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
         setOpeningChannel(true);
         try {
             const depositAmount = '1000000000000000'; // 0.001 ETH in wei
-            const platformAddress = '0x0000000000000000000000000000000000000001'; // Agent Pool
 
-            // 1. Send real ETH via MetaMask to platform
+            // 1. Fetch platform address from backend
+            const configResponse = await api.getPlatformConfig();
+            const platformAddress = configResponse.data.data.platformWallet;
+
+            if (!platformAddress) {
+                alert('Could not fetch platform address');
+                return;
+            }
+
+            // 2. Send real ETH via MetaMask to platform
             if (!window.ethereum) {
                 alert('MetaMask is required to deposit ETH');
                 return;
@@ -53,19 +61,19 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
                 params: [{
                     from: wallet.address,
                     to: platformAddress,
-                    value: '0x' + BigInt(depositAmount).toString(16), // 0.01 ETH in hex
+                    value: '0x' + BigInt(depositAmount).toString(16), // 0.001 ETH in hex
                 }],
             });
 
             console.log('[WalletConnect] Deposit tx sent:', txHash);
 
-            // 2. Create channel after deposit
+            // 3. Create channel after deposit
             await api.fundWalletChannel(wallet.address, {
                 amount: depositAmount,
                 partnerAddress: platformAddress,
             });
 
-            // 3. Record the deposit
+            // 4. Record the deposit
             await api.recordDeposit(wallet.address, {
                 amount: depositAmount,
                 txHash: txHash as string,
@@ -193,9 +201,17 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
                 alert(`On-chain settlement complete!\nTx: ${legacyData.tx_hash}\nView on explorer: ${legacyData.explorer_url}`);
             }
             refreshBalance();
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('On-chain settlement failed:', error);
-            alert('On-chain settlement failed. Make sure you have ETH for gas.');
+            let errorMessage = 'Unknown error';
+            if (error instanceof Error) {
+                errorMessage = error.message;
+            } else if (typeof error === 'object' && error !== null) {
+                // MetaMask errors have code and message properties
+                const errObj = error as { code?: number; message?: string; reason?: string };
+                errorMessage = errObj.message || errObj.reason || JSON.stringify(error);
+            }
+            alert(`On-chain settlement failed: ${errorMessage}\n\nMake sure you are on Base Sepolia network (Chain ID 84532) and have ETH for gas.`);
         }
     };
 

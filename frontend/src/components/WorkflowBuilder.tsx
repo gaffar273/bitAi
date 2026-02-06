@@ -59,8 +59,8 @@ const SERVICE_CONFIGS: Record<string, { icon: typeof Search; name: string; color
     border: 'border-amber-500/20',
     priceEth: 0.0001, // Actual ETH cost
     priceUsd: 0.01,   // Display USD - original price
-    inputLabel: 'PDF Processing',
-    placeholder: 'Place PDF in backend/pdf_doc folder. This agent will extract its text.',
+    inputLabel: 'PDF Upload',
+    placeholder: 'Upload a PDF file to extract text from.',
   },
 };
 
@@ -214,12 +214,7 @@ export function WorkflowBuilder({ wallet, onConnectWallet }: WorkflowBuilderProp
       // Build steps with input - first step gets user input
       const stepsWithInput = steps.map((step, i) => ({
         ...step,
-        input: i === 0 ? {
-          text: userInput,
-          url: userInput,
-          prompt: userInput,
-          target_lang: 'hi' // Default to Hindi for translation
-        } : undefined
+        input: i === 0 ? userInput : undefined
       }));
 
       const response = await api.executeWorkflow({
@@ -400,13 +395,65 @@ export function WorkflowBuilder({ wallet, onConnectWallet }: WorkflowBuilderProp
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <textarea
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                placeholder={inputConfig?.placeholder || 'Select a service to see input requirements...'}
-                disabled={steps.length === 0}
-                className="w-full h-32 p-4 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none resize-none disabled:opacity-50 disabled:cursor-not-allowed"
-              />
+              {steps.length > 0 && steps[0].serviceType === 'pdf_loader' ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-center w-full">
+                    <label htmlFor="file-upload" className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-700 border-dashed rounded-lg cursor-pointer bg-gray-900 hover:bg-gray-800 transition-colors">
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        <FileText className="w-8 h-8 mb-2 text-gray-400" />
+                        <p className="mb-2 text-sm text-gray-400"><span className="font-semibold">Click to upload PDF</span></p>
+                        <p className="text-xs text-gray-500">PDFs processed by agent</p>
+                      </div>
+                      <input
+                        id="file-upload"
+                        type="file"
+                        accept=".pdf"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            try {
+                              setUserInput('Uploading...');
+                              const res = await api.uploadFile(file);
+                              // Store file ID in input for backend to use
+                              const inputData = JSON.stringify({
+                                fileId: res.data.data.id,
+                                filename: res.data.data.filename
+                              });
+                              setUserInput(inputData);
+                            } catch (err) {
+                              console.error(err);
+                              setUserInput('Upload failed');
+                              alert('Failed to upload file');
+                            }
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                  {userInput && (
+                    <div className="text-sm text-center text-green-400 flex items-center justify-center gap-2">
+                      <CheckCircle2 className="w-4 h-4" />
+                      {(() => {
+                        try {
+                          const data = JSON.parse(userInput);
+                          return data.filename ? `File uploaded: ${data.filename}` : userInput;
+                        } catch {
+                          return userInput;
+                        }
+                      })()}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <textarea
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  placeholder={inputConfig?.placeholder || 'Select a service to see input requirements...'}
+                  disabled={steps.length === 0}
+                  className="w-full h-32 p-4 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+              )}
             </CardContent>
           </Card>
 

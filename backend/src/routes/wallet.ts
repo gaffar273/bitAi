@@ -1,9 +1,21 @@
 import { Router, Request, Response } from 'express';
 import { WalletService } from '../services/WalletService';
 import { YellowService } from '../services/YellowService';
+import { config } from '../config';
 import { ApiResponse } from '../types';
 
 const router = Router();
+
+// GET /api/wallet/platform-config - Get platform configuration for frontend
+router.get('/platform-config', (req: Request, res: Response) => {
+    res.json({
+        success: true,
+        data: {
+            platformWallet: config.platformWallet,
+            chainId: config.baseSepolia.chainId,
+        }
+    });
+});
 
 // POST /api/wallet/connect - Verify wallet ownership
 router.post('/connect', async (req: Request, res: Response) => {
@@ -379,8 +391,14 @@ router.post('/:address/settle-callback', async (req: Request, res: Response) => 
 
         console.log(`[Wallet] Settlement callback received for channel ${channel_id}, tx: ${tx_hash}`);
 
-        // Mark channel as settled (in production, verify tx on-chain first)
-        // For now we trust the callback - the settle was done client-side via MetaMask
+        // Actually update the channel status to settled
+        channel.status = 'settled';
+        channel.settleTxHash = tx_hash;
+        channel.updatedAt = new Date();
+
+        // Update channel in YellowService
+        await YellowService.updateChannel(channel_id, channel);
+
         res.json({
             success: true,
             data: {

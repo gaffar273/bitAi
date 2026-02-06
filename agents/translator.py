@@ -12,13 +12,16 @@ class Translator:
 
     def execute(self, text):
         """
-        Naming convention matches Orchestrator's .execute() call.
-        By default, this logic translates English to Hindi as requested.
+        Auto-detect language and translate:
+        - Hindi input -> English output
+        - English input -> Hindi output
         """
-        # System prompt instructs Gemini on the specific task
+        # Let Gemini detect language and translate accordingly
         prompt = (
-            f"You are a professional translator. Translate the following English text "
-            f"into Hindi. Return only the translated text.\n\n"
+            f"Detect the language of the following text. "
+            f"If it's in Hindi or any Indian language, translate it to English. "
+            f"If it's in English, translate it to Hindi. "
+            f"Return only the translated text, nothing else.\n\n"
             f"Text: {text}"
         )
         

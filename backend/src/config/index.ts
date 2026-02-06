@@ -26,6 +26,9 @@ export const config = {
     // Default orchestrator address for wallet channels
     defaultOrchestratorAddress: process.env.DEFAULT_ORCHESTRATOR_ADDRESS || '',
 
+    // Platform wallet (receives agent pool payments and client deposits)
+    platformWallet: process.env.PLATFORM_WALLET || '0x0000000000000000000000000000000000000001',
+
     // Database (Neon Serverless or PostgreSQL)
     databaseUrl: process.env.DATABASE_URL || '',
     dbHost: process.env.DB_HOST || 'localhost',

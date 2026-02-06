@@ -64,6 +64,27 @@ export const api = {
   health: (): Promise<AxiosResponse<HealthResponse>> =>
     axios.get(`${API_BASE}/health`),
 
+  /**
+   * Get platform configuration (wallet address, chain ID)
+   * GET /api/wallet/platform-config
+   */
+  getPlatformConfig: (): Promise<AxiosResponse<{ success: boolean; data: { platformWallet: string; chainId: number } }>> =>
+    axios.get(`${API_BASE}/api/wallet/platform-config`),
+
+  /**
+   * Upload a file
+   * POST /api/files/upload
+   */
+  uploadFile: (file: File): Promise<AxiosResponse<{ success: boolean; data: { id: string; filename: string; size: number } }>> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return axios.post(`${API_BASE}/api/files/upload`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
   // ============================================
   // Agents
   // ============================================

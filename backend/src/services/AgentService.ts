@@ -127,6 +127,78 @@ export class AgentService {
         // Try to call the Python agent server
         const agentServerUrl = process.env.AGENT_SERVER_URL || 'http://localhost:5001';
 
+        // Prepare input
+        let processedInput = input;
+
+        // Special handling for pdf_loader with DB storage
+        if (serviceType === 'pdf_loader') {
+            console.log(`[Agent] Input type for pdf_loader: ${typeof input}`);
+
+            let fileId: string | undefined;
+            let inputParsed: any = {};
+
+            try {
+                if (typeof input === 'string') {
+                    console.log(`[Agent] Raw input string: ${input}`);
+                    // Try to parse string input
+                    try {
+                        if (input.trim().startsWith('{')) {
+                            inputParsed = JSON.parse(input);
+                            fileId = inputParsed.fileId;
+                        }
+                    } catch (e) {
+                        console.warn('[Agent] JSON parse failed, trying regex');
+                    }
+
+                    // Regex fallback if JSON parse failed or didn't find ID
+                    if (!fileId && input.includes('fileId')) {
+                        const match = input.match(/"fileId"\s*:\s*"([^"]+)"/);
+                        if (match) fileId = match[1];
+                    }
+                } else if (typeof input === 'object' && input !== null) {
+                    console.log(`[Agent] Input object: ${JSON.stringify(input)}`);
+                    // Already an object
+                    inputParsed = input;
+                    fileId = (input as any).fileId;
+                }
+
+                console.log(`[Agent] Extracted fileId: ${fileId}`);
+
+                if (!fileId) {
+                    throw new Error('Could not extract fileId from input. Please re-upload the file.');
+                }
+
+                if (fileId) {
+                    const sql = getSQL();
+                    if (sql) {
+                        const fileRows = await sql`SELECT data, filename FROM file_uploads WHERE id = ${fileId}`;
+                        console.log(`[Agent] DB lookup found ${fileRows.length} rows`);
+
+                        if (fileRows.length > 0) {
+                            console.log(`[Agent] Fetched PDF ${fileRows[0].filename} from database for processing`);
+                            processedInput = {
+                                ...inputParsed,
+                                file_content: fileRows[0].data, // Base64 content
+                                filename: fileRows[0].filename
+                            };
+                        } else {
+                            // Throw error to stop execution and alert user
+                            throw new Error(`File ID ${fileId} not found in database. Upload failed?`);
+                        }
+                    } else {
+                        // Throw error if DB missing
+                        throw new Error('[Agent] Database connection unavailable for file retrieval');
+                    }
+                }
+            } catch (e) {
+                console.warn('[Agent] Error processing pdf_loader input:', e);
+                // Re-throw if it's our specific error
+                if (e instanceof Error && e.message.includes('not found in database')) throw e;
+                if (e instanceof Error && e.message.includes('Database connection unavailable')) throw e;
+            }
+        }
+
+
         let output: unknown;
         try {
             const response = await fetch(`${agentServerUrl}/execute`, {
@@ -134,7 +206,7 @@ export class AgentService {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     service_type: serviceType,
-                    input: input
+                    input: processedInput
                 })
             });
 

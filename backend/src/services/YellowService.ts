@@ -9,6 +9,7 @@ import { ethers } from 'ethers';
 import { config } from '../config';
 import { PaymentChannel, StateUpdate, Transaction } from '../types';
 import { generateId } from '../utils/blockchain';
+import { getSQL } from './DatabaseService';
 
 // Import Nitrolite SDK - use what works with our types
 import {
@@ -17,7 +18,7 @@ import {
     generateChannelNonce,
 } from '@erc7824/nitrolite';
 
-// In-memory storage
+// In-memory storage (loaded from database on init)
 const channels: Map<string, PaymentChannel> = new Map();
 const transactions: Transaction[] = [];
 
@@ -35,6 +36,69 @@ const sessions: Map<string, YellowSession> = new Map();
 export class YellowService {
     private static ws: WebSocket | null = null;
     private static connectionPromise: Promise<void> | null = null;
+    private static initialized = false;
+
+    // Initialize service - load channels from database
+    static async init() {
+        if (this.initialized) return;
+        await this.loadChannelsFromDb();
+        this.initialized = true;
+        console.log('[Yellow] Service initialized, loaded channels from database');
+    }
+
+    // Load channels from database into memory
+    private static async loadChannelsFromDb() {
+        const sql = getSQL();
+        if (!sql) return;
+
+        try {
+            const rows = await sql`
+                SELECT channel_id, session_id, agent_a, agent_b, balance_a, balance_b, nonce, status, created_at, settled_at
+                FROM payment_channels
+                WHERE status != 'settled'
+            `;
+
+            for (const row of rows) {
+                const channel: PaymentChannel = {
+                    channelId: row.channel_id,
+                    agentA: row.agent_a,
+                    agentB: row.agent_b,
+                    balanceA: parseInt(row.balance_a),
+                    balanceB: parseInt(row.balance_b),
+                    nonce: row.nonce,
+                    status: row.status,
+                    openTxHash: row.session_id,
+                    createdAt: row.created_at,
+                    updatedAt: new Date(),
+                };
+                channels.set(row.channel_id, channel);
+            }
+            console.log(`[Yellow] Loaded ${rows.length} active channels from database`);
+        } catch (error) {
+            console.error('[Yellow] Error loading channels from database:', error);
+        }
+    }
+
+    // Save channel to database
+    private static async saveChannelToDb(channel: PaymentChannel) {
+        const sql = getSQL();
+        if (!sql) return;
+
+        try {
+            await sql`
+                INSERT INTO payment_channels (channel_id, session_id, agent_a, agent_b, balance_a, balance_b, nonce, status, created_at)
+                VALUES (${channel.channelId}, ${channel.openTxHash || ''}, ${channel.agentA}, ${channel.agentB}, ${channel.balanceA.toString()}, ${channel.balanceB.toString()}, ${channel.nonce}, ${channel.status}, ${channel.createdAt})
+                ON CONFLICT (channel_id) DO UPDATE SET
+                    balance_a = ${channel.balanceA.toString()},
+                    balance_b = ${channel.balanceB.toString()},
+                    nonce = ${channel.nonce},
+                    status = ${channel.status},
+                    settled_at = ${channel.status === 'settled' ? new Date() : null}
+            `;
+        } catch (error) {
+            console.error('[Yellow] Error saving channel to database:', error);
+        }
+    }
 
     // Create a message signer compatible with Nitrolite SDK
     static createMessageSigner(privateKey: string) {
@@ -178,6 +242,9 @@ export class YellowService {
         };
         channels.set(channelId, channel);
 
+        // Persist to database
+        await this.saveChannelToDb(channel);
+
         return { sessionId, channelId };
     }
 
@@ -231,6 +298,9 @@ export class YellowService {
         transactions.push(tx);
 
         console.log(`[Yellow] Payment: ${amount} ${from.slice(0, 10)}... -> ${to.slice(0, 10)}... (nonce: ${channel.nonce})`);
+
+        // Persist updated channel state
+        await this.saveChannelToDb(channel);
 
         return { transaction: tx, channel };
     }
@@ -398,6 +468,12 @@ export class YellowService {
         return channels.get(channelId) || null;
     }
 
+    // Update channel (for settlement callbacks)
+    static async updateChannel(channelId: string, channel: PaymentChannel): Promise<void> {
+        channels.set(channelId, channel);
+        await this.saveChannelToDb(channel);
+    }
+
     // Get channel state
     static async getState(channelId: string): Promise<StateUpdate | null> {
         const channel = channels.get(channelId);
@@ -563,7 +639,7 @@ export class YellowService {
         const channel = channels.get(channelId);
         if (!channel) throw new Error('Channel not found');
 
-        // Create settlement JSON payload
+        // Create settlement JSON payload for logging (stored in backend, not on-chain)
         const settlementData = {
             type: 'YELLOW_SETTLEMENT',
             channelId: channel.channelId,
@@ -575,12 +651,15 @@ export class YellowService {
             timestamp: Date.now(),
         };
 
-        const data = ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(settlementData)));
+        // Log settlement data (for verification)
+        console.log('[Yellow] Settlement data:', JSON.stringify(settlementData));
 
+        // Send as simple ETH transfer - MetaMask blocks data to internal accounts
+        // The settlement is recorded in our backend database
         return {
-            to: channel.agentB, // Send to agent pool - MetaMask rejects data transactions to self (internal accounts)
-            data,
-            value: '0',
+            to: channel.agentB, // Send to platform wallet
+            data: '0x', // Empty data - just a simple ETH transfer
+            value: channel.balanceB.toString(), // Transfer the agent pool balance
             chainId: config.baseSepolia.chainId,
         };
     }

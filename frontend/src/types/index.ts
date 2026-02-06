@@ -55,7 +55,7 @@ export interface GetAgentResponse {
 
 export interface ExecuteServiceRequest {
   service_type: ServiceType;
-  input: Record<string, unknown>;
+  input: unknown;
 }
 
 export interface ExecuteServiceResponse {
@@ -78,7 +78,7 @@ export interface UpdateReputationRequest {
 
 export interface WorkflowStep {
   serviceType: ServiceType;
-  input?: Record<string, unknown>;
+  input?: unknown;
   agentWallet?: string;
 }
 
@@ -86,7 +86,7 @@ export interface WorkflowStepResult {
   step: number;
   serviceType: ServiceType;
   agentWallet: string;
-  input: Record<string, unknown>;
+  input: unknown;
   output: unknown;
   cost: number;
   duration: number;

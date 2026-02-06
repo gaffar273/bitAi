@@ -24,11 +24,17 @@ app.get('/health', (_req, res) => {
 });
 
 // API Routes
+import filesRouter from './routes/files';
+
+// API Routes
 app.use('/api/agents', agentsRouter);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/orchestrator', orchestratorRouter);
 app.use('/api/wallet', walletRouter);
+app.use('/api/files', filesRouter);
+
+import { YellowService } from './services/YellowService';
 
 // Start server with async initialization
 async function startServer() {
@@ -37,6 +43,9 @@ async function startServer() {
     console.log('[Database] Initializing schema...');
     try {
       await initDatabase();
+
+      // Initialize YellowService (load channels)
+      await YellowService.init();
     } catch (error) {
       console.error('[Database] Failed to initialize:', error);
       console.log('[Server] Continuing without database...');

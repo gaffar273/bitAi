@@ -2,10 +2,11 @@ import { AgentService } from './AgentService';
 import { PaymentService, RevenueShareService } from './PaymentService';
 import { TransactionLogger } from './TransactionLogger';
 import { YellowService } from './YellowService';
+import { config } from '../config';
 import { ContributionMetrics } from '../types';
 
-// Agent pool address for payment routing
-const AGENT_POOL_ADDRESS = '0x0000000000000000000000000000000000000001';
+// Agent pool address for payment routing - from environment config
+const AGENT_POOL_ADDRESS = config.platformWallet;
 
 
 // Workflow step definition
