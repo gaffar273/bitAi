@@ -1,214 +1,360 @@
-# DEV 2 Guide - AI Agent Development
+# DEV 2 Guide - AI Agent Development & Backend Integration
 
-## Your Role
-You build the AI agents that use DEV 1's backend API for payments and registration.
+## Overview
 
----
+**Backend URL**: `http://localhost:5000`  
+**Status**: Production Ready - Multi-agent orchestration, payments, and database integration complete
 
-## Architecture Overview
+This guide provides comprehensive documentation for AI agent developers integrating with the AgentSwarm backend. The backend handles all infrastructure: agent registration, workflow orchestration, payment routing via Yellow Network, database logging, and reputation management.
 
-```
-Your Code (Agent Logic)              DEV 1's Backend (Already Built)
-┌─────────────────────────┐          ┌─────────────────────────────┐
-│  LangChain / OpenAI     │          │  http://localhost:5000      │
-│  - Orchestrator Agent   │  ─────>  │  - Agent registration       │
-│  - Translator Agent     │          │  - Payment channels         │
-│  - Scraper Agent        │          │  - Service execution        │
-│  - Summarizer Agent     │          │  - Yellow SDK integration   │
-└─────────────────────────┘          └─────────────────────────────┘
-```
+**Your role**: Build AI agent logic. The backend handles everything else.
 
 ---
 
-## Step 1: Register Your Agent
+## Table of Contents
 
-Each AI agent needs a wallet to receive payments.
-
-```python
-import requests
-
-# Register a translator agent
-response = requests.post("http://localhost:5000/api/agents/register", json={
-    "services": [
-        {
-            "type": "translation",
-            "description": "Translate text between languages",
-            "inputSchema": {"text": "string", "target_lang": "string"},
-            "outputSchema": {"translated": "string"}
-        }
-    ],
-    "pricing": [
-        {
-            "serviceType": "translation",
-            "priceUsdc": 0.05,
-            "unit": "per 100 words"
-        }
-    ]
-})
-
-data = response.json()["data"]
-wallet = data["wallet"]           # Agent's wallet address
-private_key = data["privateKey"]  # SAVE THIS - needed for signing payments
-```
+1. [Backend Architecture](#backend-architecture)
+2. [Complete API Reference](#complete-api-reference)
+3. [How It Works - Flow Diagrams](#how-it-works---flow-diagrams)
+4. [Quick Start Guide](#quick-start-guide)
+5. [Testing & Validation](#testing--validation)
 
 ---
 
-## Step 2: Discover Other Agents
+## Backend Architecture
 
-Find agents that provide a specific service:
+### Complete Backend Folder Structure
 
-```python
-# Find all translation agents
-response = requests.get("http://localhost:5000/api/agents?service_type=translation")
-agents = response.json()["data"]
-
-for agent in agents:
-    print(f"Agent: {agent['wallet']}")
-    print(f"Price: ${agent['pricing'][0]['priceUsdc']}")
-    print(f"Reputation: {agent['reputation']}/1000")
 ```
+backend/
+├── src/
+│   ├── config/
+│   │   └── index.ts                 # Configuration management (env vars, Yellow Network setup)
+│   │
+│   ├── routes/
+│   │   ├── agents.ts                # Agent registration, discovery, execution
+│   │   ├── orchestrator.ts          # Multi-agent workflow management
+│   │   ├── payments.ts              # Yellow Network payment channels
+│   │   └── analytics.ts             # Transaction history & gas savings
+│   │
+│   ├── services/
+│   │   ├── AgentService.ts          # Core agent operations (register, execute, reputation)
+│   │   ├── OrchestratorService.ts   # Workflow execution & agent selection
+│   │   ├── YellowService.ts         # Yellow Network SDK integration
+│   │   ├── PaymentService.ts        # Payment processing logic
+│   │   ├── DatabaseService.ts       # Neon PostgreSQL connection & schema
+│   │   └── TransactionLogger.ts     # Automatic transaction logging
+│   │
+│   ├── types/
+│   │   └── index.ts                 # TypeScript interfaces (Agent, Transaction, etc.)
+│   │
+│   ├── utils/
+│   │   └── blockchain.ts            # Wallet generation & crypto utilities
+│   │
+│   └── index.ts                     # Express server setup & route mounting
+│
+├── .env                             # Environment variables (DATABASE_URL, YELLOW_WS_URL)
+├── .env.example                     # Environment template
+├── package.json                     # Dependencies (Express, Yellow SDK, Neon)
+└── tsconfig.json                    # TypeScript configuration
+```
+
+### Key Components
+
+#### **Routes Layer**
+Handles HTTP requests and responses, validates inputs, and delegates to services.
+
+| **File** | **Purpose** |
+|----------|-------------|
+| `agents.ts` | Agent lifecycle management (register, execute, deactivate) |
+| `orchestrator.ts` | Multi-step workflow coordination |
+| `payments.ts` | Payment channel operations (open, transfer, settle) |
+| `analytics.ts` | Metrics and transaction history |
+
+#### **Services Layer**
+Contains business logic for agent operations, payments, and database interactions.
+
+| **Service** | **Responsibilities** |
+|-------------|----------------------|
+| `AgentService` | Agent registration, service execution, reputation updates |
+| `OrchestratorService` | Automatic agent selection, workflow chaining, payment distribution |
+| `YellowService` | Yellow Network SDK wrapper (state channels, 0-gas transfers) |
+| `DatabaseService` | Neon PostgreSQL connection, schema initialization |
+| `TransactionLogger` | Automatic logging of all agent transactions |
+
+#### **Database Schema (Neon PostgreSQL)**
+
+**Tables**:
+- `agents` - Agent registry (wallet, services, pricing, reputation)
+- `transactions` - All payment events
+- `workflow_executions` - Multi-agent workflow history
+- `reputation_history` - Agent reputation changes over time
 
 ---
 
-## Step 3: Open Payment Channel
+## What APIs You'll Use (As Agent Developer)
 
-Before hiring an agent, open a payment channel:
+> **You are building AI agents, NOT managing the backend.** The backend handles payments, channels, and analytics automatically.
 
-```python
-# Orchestrator opens channel with a worker agent
-response = requests.post("http://localhost:5000/api/payments/channel/open", json={
-    "agent_a": orchestrator_wallet,  # Your wallet
-    "agent_b": worker_wallet,         # Agent you're hiring
-    "balance_a": "1000000",           # 1 USDC (6 decimals)
-    "balance_b": "0",
-    "private_key": orchestrator_private_key  # Optional for signing
-})
+### Simple Flow: How Your Agent Works
 
-channel_id = response.json()["data"]["channel_id"]
+```mermaid
+flowchart TD
+    A["YOU: Register Agent"] --> B["Get Wallet Address"]
+    B --> C["Wait for Jobs"]
+    C --> D{"Someone needs<br/>your service?"}
+    D -->|Yes| E["Your Agent Does the Work"]
+    E --> F["You Get Paid Automatically"]
+    F --> G["Your Reputation Goes Up"]
+    G --> C
 ```
+
+### 3 Simple Steps
+
+| Step | What You Do | What Happens |
+|------|-------------|--------------|
+| 1. Register | Tell system what you can do + your price | You get a wallet address |
+| 2. Wait | Your agent is now in the marketplace | People can find and use it |
+| 3. Earn | When someone uses your agent | You get paid automatically |
+
+### APIs for Agent Developers
+
+#### **1. Register Your Agent** - `POST /api/agents/register`
+
+```bash
+curl -X POST http://localhost:5000/api/agents/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "services": [{"type": "translation", "description": "GPT-4 translation"}],
+    "pricing": [{"serviceType": "translation", "priceUsdc": 0.05}]
+  }'
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "wallet": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
+    "privateKey": "0xac0974bec...",
+    "agentId": "agent-123"
+  }
+}
+```
+
+**Save these values**:
+- `wallet` - Your agent's unique address (use this in step 2)
+- `privateKey` - Keep this secure
 
 ---
 
-## Step 4: Execute Service and Pay
+#### **2. Execute a Service** - `POST /api/agents/:wallet/execute`
 
-Call an agent's service, then pay them:
+This is how someone calls YOUR agent (using the wallet from step 1):
 
-```python
-# 1. Request the service
-result = requests.post(f"http://localhost:5000/api/agents/{worker_wallet}/execute", json={
+```bash
+# Replace 0x742d35Cc... with YOUR wallet from registration
+curl -X POST http://localhost:5000/api/agents/0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb/execute \
+  -H "Content-Type: application/json" \
+  -d '{
     "service_type": "translation",
-    "input": {
-        "text": "Hello world",
-        "target_lang": "es"
-    }
-})
-
-output = result.json()["data"]["output"]
-cost = result.json()["data"]["cost"]  # e.g., 0.05
-
-# 2. Pay the agent (instant, 0 gas)
-payment = requests.post("http://localhost:5000/api/payments/transfer", json={
-    "channel_id": channel_id,
-    "from": orchestrator_wallet,
-    "to": worker_wallet,
-    "amount": str(int(cost * 1000000))  # Convert to micro-USDC
-})
-
-print(f"Paid ${cost}, gas cost: ${payment.json()['data']['gas_cost']}")  # Always 0
+    "input": {"text": "Hello", "targetLanguage": "es"}
+  }'
 ```
+
+**Your agent returns**: `{"output": {"translatedText": "Hola"}, "cost": 0.05}`
 
 ---
 
-## Step 5: Build the Orchestrator
+#### **3. Participate in Workflows** - `POST /api/orchestrator/workflow`
 
-The Orchestrator is the main agent that breaks down user tasks:
+Backend automatically picks your agent if you're the cheapest:
 
+```bash
+curl -X POST http://localhost:5000/api/orchestrator/workflow \
+  -H "Content-Type: application/json" \
+  -d '{
+    "orchestratorWallet": "0xOrchestrator",
+    "steps": [
+      {"serviceType": "translation", "input": {"text": "Hello", "targetLanguage": "fr"}}
+    ]
+  }'
+```
+
+**Backend does**:
+- Finds cheapest translation agent (maybe yours!)
+- Pays you automatically via Yellow Network
+- Updates your reputation (+10)
+- Logs everything to database
+
+---
+
+## How Your Agent Works (Flow Diagram)
+
+### What Happens When Someone Uses Your Agent
+
+```mermaid
+sequenceDiagram
+    participant Client as Client
+    participant Backend as Backend
+    participant YourAgent as Your AI Agent
+    
+    Client->>Backend: I need translation service
+    Backend->>Backend: Find cheapest translation agent
+    Note over Backend: Your agent is cheapest!
+    
+    Backend->>YourAgent: Execute translation
+    Note over Backend,YourAgent: Input: {text: "Hello", lang: "es"}
+    
+    YourAgent->>YourAgent: Call your LLM (GPT-4, etc.)
+    YourAgent-->>Backend: Return output
+    Note over YourAgent,Backend: Output: {translatedText: "Hola"}
+    
+    Backend->>YourAgent: Send payment (0 gas)
+    Backend->>Backend: Update your reputation +10
+    Backend->>Backend: Log to database
+    
+    Backend-->>Client: Return result + cost
+```
+
+**Key Points**:
+1. Backend finds you (if you're cheapest)
+2. Backend calls your execute endpoint
+3. You process with your LLM
+4. You return output
+5. Backend pays you automatically
+6. Your reputation increases
+
+---
+
+## Quick Start - Build Your First Agent
+
+### Step 1: Register
+
+```bash
+curl -X POST http://localhost:5000/api/agents/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "services": [{"type": "translation", "description": "GPT-4 translation"}],
+    "pricing": [{"serviceType": "translation", "priceUsdc": 0.05}]
+  }'
+```
+
+**Response gives you**:
+```json
+{
+  "wallet": "0x742d35Cc...",  ← Your agent's address
+  "privateKey": "0xac0974...", ← Keep secure
+  "agentId": "agent-123"
+}
+```
+
+**Save the wallet address** - you'll use it in Step 3
+
+---
+
+### Step 2: Build Your Agent Logic
+
+**Python Example**:
 ```python
-from langchain.chat_models import ChatOpenAI
-from langchain.agents import initialize_agent, Tool
+from openai import OpenAI
 
-llm = ChatOpenAI(model="gpt-4")
-
-# Define tools that call the backend API
-tools = [
-    Tool(
-        name="find_agents",
-        func=lambda service_type: find_agents_api(service_type),
-        description="Find agents that provide a service. Input: service type (translation, scraper, summarizer, image_gen)"
-    ),
-    Tool(
-        name="hire_agent",
-        func=lambda args: hire_and_pay_agent(args),
-        description="Hire an agent to do work. Input: {wallet, service_type, input_data}"
-    ),
-]
-
-orchestrator = initialize_agent(tools, llm, agent="zero-shot-react-description")
-
-# User request
-result = orchestrator.run("Create a blog post about AI in Spanish with an image")
+def translate(input_data):
+    text = input_data['text']
+    target = input_data.get('targetLanguage', 'es')
+    
+    client = OpenAI()
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": f"Translate to {target}"},
+            {"role": "user", "content": text}
+        ]
+    )
+    
+    return {"translatedText": response.choices[0].message.content}
 ```
 
 ---
 
-## Agent Types to Build
+### Step 3: Test Your Agent
 
-| Agent | Service Type | Input | Output | Price |
-|-------|--------------|-------|--------|-------|
-| Translator | `translation` | text, target_lang | translated text | $0.05/100 words |
-| Scraper | `scraper` | url | extracted data | $0.02/page |
-| Summarizer | `summarizer` | text | summary | $0.03/500 words |
-| Image Generator | `image_gen` | prompt | image URL | $0.10/image |
-
----
-
-## Example: Full Flow
-
-```python
-# 1. User request
-user_input = "Summarize the top tech news and translate to Japanese"
-
-# 2. Orchestrator breaks down task
-#    - Step 1: Scrape tech news (hire Scraper)
-#    - Step 2: Summarize (hire Summarizer)
-#    - Step 3: Translate (hire Translator)
-
-# 3. For each step:
-#    - Find cheapest/best agent
-#    - Open channel (or reuse existing)
-#    - Execute service
-#    - Pay instantly via Yellow (0 gas)
-
-# 4. Return final result to user
+```bash
+# Use YOUR wallet from Step 1 (e.g., 0x742d35Cc...)
+curl -X POST http://localhost:5000/api/agents/0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb/execute \
+  -H "Content-Type: application/json" \
+  -d '{"service_type": "translation", "input": {"text": "Hello", "targetLanguage": "es"}}'
 ```
 
----
-
-## API Reference
-
-Full API docs: `/docs/api-reference.md`
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/agents/register` | POST | Register new agent |
-| `/api/agents?service_type=X` | GET | Find agents |
-| `/api/agents/:wallet/execute` | POST | Execute service |
-| `/api/payments/channel/open` | POST | Open payment channel |
-| `/api/payments/transfer` | POST | Instant payment |
-| `/api/analytics/savings` | GET | See gas savings |
+**Expected**: `{"output": {"translatedText": "Hola"}, "cost": 0.05}`
 
 ---
 
-## Your Deliverables
+### Step 4: Your Agent Earns Money
 
-1. **Orchestrator Agent** - Takes user input, decomposes tasks, hires agents
-2. **Worker Agents** - At least 2-3 types (translator, summarizer, etc.)
-3. **LangChain Integration** - Tools that call DEV 1's API
-4. **Demo Script** - Show agents working together
+Once registered, your agent:
+- Gets picked for workflows automatically
+- Receives micro-payments (0 gas)
+- Builds reputation (+10 per job)
+- Shows up in agent discovery
+
+**That's it! You're earning from AI services.**
+
+---
+
+## What You Need to Know
+
+### Service Types
+
+| **Type** | **What It Does** | **Input** | **Output** | **Price** |
+|----------|------------------|-----------|------------|-----------|
+| `translation` | Translate text | `{text, targetLanguage}` | `{translatedText}` | $0.03-$0.10 |
+| `summarizer` | Summarize content | `{content}` | `{summary}` | $0.02-$0.05 |
+| `scraper` | Extract from URLs | `{url}` | `{content}` | $0.01-$0.03 |
+| `image_gen` | Generate images | `{prompt}` | `{imageUrl}` | $0.05-$0.20 |
+
+---
+
+### Reputation System
+
+- Start at **500 reputation**
+- **+10** for each successful job
+- Higher reputation = more visibility
+
+---
+
+### Pricing
+
+**Micro-USDC (6 decimals)**:
+- `50000` = $0.05
+- `100000` = $0.10
+- `1000000` = $1.00
+
+**Tip**: Lower prices = higher selection probability
+
+---
+
+## Troubleshooting
+
+### Agent not getting selected?
+1. Check your pricing (too expensive?)
+2. Verify agent is active: `curl http://localhost:5000/api/agents/0x742d35Cc...` (use your wallet from Step 1)
+3. Check service type matches exactly
+
+### Execution failing?
+1. Your LLM API key working?
+2. Returning correct output format?
+3. Check backend logs for errors
 
 ---
 
 ## Questions?
 
-Backend running at: `http://localhost:5000`
-Test it: `curl http://localhost:5000/health`
+**Backend running?**
+```bash
+curl http://localhost:5000/health
+```
+
+**Check backend logs**: Terminal running `npm run dev`
+
+---

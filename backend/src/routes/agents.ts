@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { AgentService, AgentRegistrationResult, ExecutionResult } from '../services/AgentService';
-import { ApiResponse, Agent } from '../types';
+import { PaymentService } from '../services/PaymentService';
+import { ApiResponse, Agent, PricingDef } from '../types';
 
 const router = Router();
 
@@ -15,6 +16,18 @@ router.post('/register', async (req: Request, res: Response) => {
                 error: 'Services and pricing are required',
             } as ApiResponse<null>);
             return;
+        }
+
+        // Validate pricing against price floors
+        for (const p of pricing as PricingDef[]) {
+            if (!PaymentService.validatePricing(p.serviceType, p.priceUsdc)) {
+                const floor = PaymentService.getPriceFloor(p.serviceType);
+                res.status(400).json({
+                    success: false,
+                    error: `Price for ${p.serviceType} ($${p.priceUsdc}) is below minimum floor ($${floor})`,
+                } as ApiResponse<null>);
+                return;
+            }
         }
 
         const result = await AgentService.register(services, pricing);

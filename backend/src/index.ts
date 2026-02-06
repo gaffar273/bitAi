@@ -6,6 +6,11 @@ import { config } from './config';
 import agentsRouter from './routes/agents';
 import paymentsRouter from './routes/payments';
 import analyticsRouter from './routes/analytics';
+import orchestratorRouter from './routes/orchestrator';
+import walletRouter from './routes/wallet';
+
+// Import database service
+import { initDatabase } from './services/DatabaseService';
 
 const app = express();
 
@@ -22,10 +27,26 @@ app.get('/health', (_req, res) => {
 app.use('/api/agents', agentsRouter);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/analytics', analyticsRouter);
+app.use('/api/orchestrator', orchestratorRouter);
+app.use('/api/wallet', walletRouter);
 
-// Start server
-app.listen(config.port, () => {
-  console.log(`
+// Start server with async initialization
+async function startServer() {
+  // Initialize database if configured
+  if (config.databaseUrl || config.enableDatabase) {
+    console.log('[Database] Initializing schema...');
+    try {
+      await initDatabase();
+    } catch (error) {
+      console.error('[Database] Failed to initialize:', error);
+      console.log('[Server] Continuing without database...');
+    }
+  } else {
+    console.log('[Database] No DATABASE_URL configured - running in memory mode');
+  }
+
+  app.listen(config.port, () => {
+    console.log(`
   ================================================
     AgentSwarm Backend Server
   ================================================
@@ -33,6 +54,7 @@ app.listen(config.port, () => {
     Environment: ${config.nodeEnv}
     Port: ${config.port}
     Yellow Network: ${config.yellowWsUrl}
+    Database: ${config.databaseUrl ? 'Neon (connected)' : 'In-memory'}
   
   Available endpoints:
     - GET  /health
@@ -44,9 +66,17 @@ app.listen(config.port, () => {
     - POST /api/payments/settle
     - GET  /api/analytics/savings
     - GET  /api/analytics/transactions
+    - POST /api/orchestrator/workflow
+    - GET  /api/orchestrator/pricing/:serviceType
+    - POST /api/wallet/connect
+    - GET  /api/wallet/:address/balance
+    - POST /api/wallet/:address/fund-channel
   
   ================================================
   `);
-});
+  });
+}
+
+startServer();
 
 export default app;
