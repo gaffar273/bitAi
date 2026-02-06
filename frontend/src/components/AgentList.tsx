@@ -1,14 +1,22 @@
 import { useEffect, useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Filter } from 'lucide-react';
 import { api } from '../services/api';
 import type { Agent, ServiceType } from '../types';
 import { AgentCard } from './AgentCard';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 export function AgentList() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [filter, setFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -17,8 +25,8 @@ export function AgentList() {
     const loadAgents = async () => {
       setLoading(true);
       try {
-        const serviceFilter = filter === 'all' ? undefined : filter as ServiceType;
-        const response = await api.getAgents(serviceFilter);
+        // Fetch all agents first, then filter client-side for better search UX
+        const response = await api.getAgents();
         if (isMounted) {
           setAgents(response.data.data);
         }
@@ -35,30 +43,81 @@ export function AgentList() {
     return () => {
       isMounted = false;
     };
-  }, [filter]);
+  }, []);
 
-  const serviceTypes = ['all', 'translation', 'image_gen', 'scraper', 'summarizer'];
+  const serviceTypes = [
+    { value: 'all', label: 'All Categories' },
+    { value: 'research', label: 'Deep Research' },
+    { value: 'coding', label: 'Coding Assistant' },
+    { value: 'data_analysis', label: 'Data Analysis' },
+    { value: 'scraper', label: 'Web Scraper' },
+    { value: 'translation', label: 'Translation' },
+    { value: 'summarizer', label: 'Summarizer' },
+    { value: 'image_gen', label: 'Image Generation' },
+    { value: 'security', label: 'Security Audit' },
+    { value: 'copywriting', label: 'Copywriting' },
+    { value: 'marketing', label: 'Marketing SEO' },
+    { value: 'pdf_loader', label: 'PDF Processing' },
+  ];
+
+  const filteredAgents = agents.filter(agent => {
+    // 1. Service Type Filter
+    const matchesType = filter === 'all'
+      ? true
+      : agent.services.some(s => s.type === filter);
+
+    // 2. Search Query Filter (Name/Type, Wallet, ID, Description)
+    const normalizedQuery = searchQuery.toLowerCase();
+    const matchesSearch = searchQuery === ''
+      ? true
+      : agent.wallet.toLowerCase().includes(normalizedQuery) ||
+      agent.id.toLowerCase().includes(normalizedQuery) ||
+      // Search by "Name" (Service Type)
+      agent.services.some(s => s.type.replace('_', ' ').toLowerCase().includes(normalizedQuery)) ||
+      // Search by Description
+      agent.services.some(s => s.description.toLowerCase().includes(normalizedQuery));
+
+    return matchesType && matchesSearch;
+  });
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Agent Marketplace</h1>
-        <p className="text-gray-400">Browse autonomous AI agents available for hire</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight mb-2">Agent Marketplace</h1>
+          <p className="text-gray-400">Browse autonomous AI agents available for hire</p>
+        </div>
       </div>
 
-      {/* Filter Buttons */}
-      <div className="flex flex-wrap gap-2">
-        {serviceTypes.map(type => (
-          <Button
-            key={type}
-            variant={filter === type ? "default" : "outline"}
-            onClick={() => setFilter(type)}
-            className="capitalize"
-          >
-            {type.replace('_', ' ')}
-          </Button>
-        ))}
+      {/* Search & Filter Bar */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Search by name, wallet or capability..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 bg-gray-900/50 border-gray-800"
+          />
+        </div>
+        <div className="w-full sm:w-[240px]">
+          <Select value={filter} onValueChange={setFilter}>
+            <SelectTrigger className="w-full bg-gray-900/50 border-gray-800">
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-gray-400" />
+                <SelectValue placeholder="Category" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              {serviceTypes.map(type => (
+                <SelectItem key={type.value} value={type.value}>
+                  {type.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Loading State */}
@@ -83,16 +142,16 @@ export function AgentList() {
       )}
 
       {/* Agent Grid */}
-      {!loading && agents.length > 0 && (
+      {!loading && filteredAgents.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {agents.map((agent) => (
+          {filteredAgents.map((agent) => (
             <AgentCard key={agent.wallet} agent={agent} />
           ))}
         </div>
       )}
 
       {/* Empty State */}
-      {!loading && agents.length === 0 && (
+      {!loading && filteredAgents.length === 0 && (
         <Card className="max-w-md mx-auto">
           <CardContent className="p-12 text-center">
             <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -117,7 +176,7 @@ export function AgentList() {
                 {agents.length}
               </div>
               <div className="text-sm text-gray-400">
-                {filter === 'all' ? 'Total Agents' : 'Matching Agents'}
+                Total Agents
               </div>
             </CardContent>
           </Card>
@@ -125,9 +184,9 @@ export function AgentList() {
           <Card>
             <CardContent className="p-6 text-center">
               <div className="text-4xl font-bold text-green-400 mb-2">
-                {agents.filter(a => a.active).length}
+                {filteredAgents.length}
               </div>
-              <div className="text-sm text-gray-400">Active & Online</div>
+              <div className="text-sm text-gray-400">Visible Agents</div>
             </CardContent>
           </Card>
 

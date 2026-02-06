@@ -2,7 +2,7 @@
 // Service & Pricing Types
 // ============================================
 
-export type ServiceType = 'translation' | 'image_gen' | 'scraper' | 'summarizer' | 'orchestrator' | 'pdf_loader';
+export type ServiceType = 'translation' | 'image_gen' | 'scraper' | 'summarizer' | 'orchestrator' | 'pdf_loader' | 'research' | 'coding' | 'data_analysis' | 'security' | 'copywriting' | 'marketing';
 
 export interface Service {
   type: ServiceType;

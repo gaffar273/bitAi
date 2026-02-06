@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Globe, Palette, Search, FileText, Bot, Star, Circle, Play, Loader2, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { Globe, Palette, Search, FileText, Bot, Star, Circle, Play, Loader2, CheckCircle2, AlertCircle, X, Beaker, Terminal, LineChart, Shield, PenTool, Megaphone } from 'lucide-react';
 import type { Agent, ServiceType } from '../types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -62,6 +62,64 @@ const SERVICE_CONFIGS: Record<string, {
     bg: 'bg-pink-500/10',
     fields: [
       { key: 'prompt', label: 'Image Prompt', placeholder: 'Describe the image you want to generate...', type: 'textarea' },
+    ],
+  },
+  research: {
+    icon: Beaker,
+    name: 'Deep Research',
+    color: 'text-indigo-400',
+    bg: 'bg-indigo-500/10',
+    fields: [
+      { key: 'topic', label: 'Research Topic', placeholder: 'What topic should I research deeply?', type: 'text' },
+    ],
+  },
+  coding: {
+    icon: Terminal,
+    name: 'Code Assistant',
+    color: 'text-cyan-400',
+    bg: 'bg-cyan-500/10',
+    fields: [
+      { key: 'task', label: 'Coding Task', placeholder: 'Describe the function or script you need...', type: 'textarea' },
+      { key: 'language', label: 'Language', placeholder: 'Python, TypeScript, Rust...', type: 'text' },
+    ],
+  },
+  data_analysis: {
+    icon: LineChart,
+    name: 'Data Analyst',
+    color: 'text-teal-400',
+    bg: 'bg-teal-500/10',
+    fields: [
+      { key: 'data_source', label: 'Data Source', placeholder: 'URL or description of data...', type: 'text' },
+      { key: 'query', label: 'Analysis Query', placeholder: 'What insights do you need?', type: 'textarea' },
+    ],
+  },
+  security: {
+    icon: Shield,
+    name: 'Security Audit',
+    color: 'text-red-400',
+    bg: 'bg-red-500/10',
+    fields: [
+      { key: 'target', label: 'Target to Audit', placeholder: 'Smart contract address or URL...', type: 'text' },
+    ],
+  },
+  copywriting: {
+    icon: PenTool,
+    name: 'Creative Writer',
+    color: 'text-orange-400',
+    bg: 'bg-orange-500/10',
+    fields: [
+      { key: 'topic', label: 'Topic', placeholder: 'Blog post topic or ad copy subject...', type: 'text' },
+      { key: 'tone', label: 'Tone', placeholder: 'Professional, witty, persuasive...', type: 'text' },
+    ],
+  },
+  marketing: {
+    icon: Megaphone,
+    name: 'Marketing SEO',
+    color: 'text-yellow-400',
+    bg: 'bg-yellow-500/10',
+    fields: [
+      { key: 'keyword', label: 'Target Keywords', placeholder: 'Keywords to analyze...', type: 'text' },
+      { key: 'url', label: 'Page URL', placeholder: 'https://...', type: 'url' },
     ],
   },
 };
@@ -130,6 +188,12 @@ export function AgentCard({ agent }: Props) {
     'scraper': Search,
     'summarizer': FileText,
     'pdf_loader': FileText,
+    'research': Beaker,
+    'coding': Terminal,
+    'data_analysis': LineChart,
+    'security': Shield,
+    'copywriting': PenTool,
+    'marketing': Megaphone,
   };
 
   const ServiceIcon = serviceIcons[serviceType] || Bot;
