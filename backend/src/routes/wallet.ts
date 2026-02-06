@@ -325,6 +325,26 @@ router.get('/:address/deposits', async (req: Request, res: Response) => {
     }
 });
 
+// GET /api/wallet/:address/spending - Get total spending summary
+router.get('/:address/spending', async (req: Request, res: Response) => {
+    try {
+        const address = req.params.address as string;
+
+        const spending = await WalletService.getSpendingSummary(address);
+
+        res.json({
+            success: true,
+            data: spending,
+        });
+    } catch (error) {
+        console.error('[Wallet Route] Spending error:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to fetch spending',
+        });
+    }
+});
+
 // GET /api/wallet/:address - Get wallet info
 router.get('/:address', async (req: Request, res: Response) => {
     try {

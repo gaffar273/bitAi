@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { BrowserProvider, formatEther } from 'ethers';
 import { api } from '../services/api';
-import type { WalletChannel } from '../types';
+import type { WalletChannel, SpendingSummary } from '../types';
 
 // Base Sepolia Testnet Configuration
 const BASE_SEPOLIA_CHAIN_ID = '0x14a34'; // 84532 in hex
@@ -59,6 +59,10 @@ export function WalletConnect() {
     });
     const [copied, setCopied] = useState(false);
     const [settling, setSettling] = useState<string | null>(null);
+    const [spending, setSpending] = useState<SpendingSummary | null>(null);
+    const [showFundModal, setShowFundModal] = useState(false);
+    const [fundAmount, setFundAmount] = useState('0.01');
+    const [isFunding, setIsFunding] = useState(false);
 
     const isMetaMaskInstalled = typeof window !== 'undefined' && Boolean(window.ethereum?.isMetaMask);
 
@@ -114,10 +118,19 @@ export function WalletConnect() {
                 // Channels might not exist yet
             }
 
-            return { ethBalance, channels };
+            // Get spending summary
+            let spendingData: SpendingSummary | null = null;
+            try {
+                const spendingRes = await api.getSpendingSummary(address);
+                spendingData = spendingRes.data.data;
+            } catch {
+                // Spending data may not exist yet
+            }
+
+            return { ethBalance, channels, spending: spendingData };
         } catch (err) {
             console.error('Failed to fetch wallet data:', err);
-            return { ethBalance: '0', channels: [] };
+            return { ethBalance: '0', channels: [], spending: null };
         }
     }, []);
 
@@ -136,6 +149,7 @@ export function WalletConnect() {
                 if (accounts && accounts.length > 0 && accounts[0].toLowerCase() === savedAddress.toLowerCase()) {
                     // Account is still connected, fetch data
                     const data = await fetchWalletData(savedAddress);
+                    setSpending(data.spending);
                     setWallet(prev => ({
                         ...prev,
                         address: savedAddress,
@@ -258,6 +272,7 @@ export function WalletConnect() {
 
             // Fetch wallet data
             const data = await fetchWalletData(address);
+            setSpending(data.spending);
 
             setWallet({
                 address,
@@ -285,6 +300,7 @@ export function WalletConnect() {
 
         try {
             const data = await fetchWalletData(wallet.address);
+            setSpending(data.spending);
 
             setWallet(prev => ({
                 ...prev,
@@ -324,37 +340,102 @@ export function WalletConnect() {
 
         setSettling(channelId);
         try {
-            // 1. Get transaction data from backend
+            // Step 1: Get settlement data from backend
+            //   Backend returns: { to, value, data, summary, settlementData }
+            //   - `to` = your own address (self-transfer to record proof on-chain)
+            //   - `data` = hex-encoded JSON proof of final channel balances
+            //   - `summary` = human-readable breakdown
             const dataRes = await api.getSettlementData(wallet.address, channelId);
-            const txData = dataRes.data.data; // { to, value, data }
+            const txData = dataRes.data.data;
+            const summary = txData.summary;
 
-            alert(`Ready to settle! Amount: ${(Number(txData.settlementData.balanceA) / 1e18).toFixed(6)} ETH. Please confirm in MetaMask.`);
+            const userBalEth = (Number(summary.userBalance) / 1e18).toFixed(6);
+            const partnerBalEth = (Number(summary.partnerBalance) / 1e18).toFixed(6);
 
-            // 2. Send transaction via MetaMask
+            const proceed = confirm(
+                `⚡ Settle Channel\n\n` +
+                `Your remaining balance: ${userBalEth} ETH\n` +
+                `Paid to agents: ${partnerBalEth} ETH\n` +
+                `Total off-chain transactions: ${summary.totalTransactions}\n\n` +
+                `This will send a 0-value proof transaction on Base Sepolia.\n` +
+                `Click OK to sign in MetaMask.`
+            );
+
+            if (!proceed) {
+                setSettling(null);
+                return;
+            }
+
+            // Step 2: Send on-chain proof via MetaMask
+            //   This is a self-transfer (to = your address, value = 0)
+            //   The `data` field contains the settlement proof as hex
+            //   This records the final state immutably on Base Sepolia
             const txHash = await window.ethereum.request({
                 method: 'eth_sendTransaction',
                 params: [{
                     from: wallet.address,
-                    to: txData.to,
-                    value: txData.value, // '0x0' usually
-                    data: txData.data, // The proof
+                    to: txData.to,       // Your own address (self-proof)
+                    value: txData.value,  // 0x0 (no ETH transferred)
+                    data: txData.data,    // Hex-encoded settlement proof
                 }],
             }) as string;
 
-            console.log('On-chain tx sent:', txHash);
-            alert(`Transaction Sent! Hash: ${txHash}. Waiting for confirmation...`);
+            console.log('Settlement tx sent:', txHash);
 
-            // 3. Notify backend
+            // Step 3: Notify backend that settlement tx was sent
+            //   Backend will: close the Yellow ClearNode session, update
+            //   channel status to 'settled', and log to the proof ledger
             await api.settleCallback(wallet.address, channelId, txHash);
 
-            alert('Settlement Complete! Channel closed on Yellow Network.');
+            alert(
+                `✅ Settlement Complete!\n\n` +
+                `Tx Hash: ${txHash.slice(0, 20)}...\n` +
+                `Your balance: ${userBalEth} ETH\n` +
+                `Paid to agents: ${partnerBalEth} ETH\n\n` +
+                `View on BaseScan: https://sepolia.basescan.org/tx/${txHash}`
+            );
+
             refreshBalance();
 
         } catch (err) {
             console.error('Settlement failed:', err);
-            alert('Settlement failed: ' + (err instanceof Error ? err.message : JSON.stringify(err)));
+            const msg = err instanceof Error ? err.message : JSON.stringify(err);
+            // User rejected in MetaMask = code 4001
+            if (msg.includes('4001') || msg.includes('rejected')) {
+                alert('Settlement cancelled — you rejected the transaction in MetaMask.');
+            } else {
+                alert('Settlement failed: ' + msg);
+            }
         } finally {
             setSettling(null);
+        }
+    };
+
+    const handleFundChannel = async () => {
+        if (!wallet.address || !window.ethereum) return;
+
+        setIsFunding(true);
+        try {
+            const amount = parseFloat(fundAmount);
+            if (isNaN(amount) || amount <= 0) {
+                alert('Please enter a valid amount');
+                return;
+            }
+
+            // Fund the channel via backend (creates Yellow session)
+            await api.fundWalletChannel(wallet.address, {
+                amount,
+            });
+
+            alert(`Channel funded with ${amount} ETH! You can now use agents with instant payments.`);
+            setShowFundModal(false);
+            setFundAmount('0.01');
+            refreshBalance();
+        } catch (err) {
+            console.error('Fund channel failed:', err);
+            alert('Failed to fund channel: ' + (err instanceof Error ? err.message : JSON.stringify(err)));
+        } finally {
+            setIsFunding(false);
         }
     };
 
@@ -538,6 +619,69 @@ export function WalletConnect() {
                 </motion.button>
             </motion.div>
 
+            {/* Spending Summary */}
+            <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="bg-gradient-to-br from-purple-900/30 to-gray-900 rounded-2xl p-6 border border-purple-700/50 mb-8"
+            >
+                <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <span>📊</span> Total Spending
+                </h2>
+                {spending ? (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-gray-800/60 rounded-xl p-4">
+                            <div className="text-xs text-gray-400 mb-1">Total Spent</div>
+                            <div className="text-xl font-bold text-red-400">
+                                {(spending.totalSpent / 1e18).toFixed(6)} ETH
+                            </div>
+                        </div>
+                        <div className="bg-gray-800/60 rounded-xl p-4">
+                            <div className="text-xs text-gray-400 mb-1">Channels Funded</div>
+                            <div className="text-xl font-bold text-yellow-400">
+                                {spending.totalChannelsFunded}
+                            </div>
+                        </div>
+                        <div className="bg-gray-800/60 rounded-xl p-4">
+                            <div className="text-xs text-gray-400 mb-1">Transactions</div>
+                            <div className="text-xl font-bold text-blue-400">
+                                {spending.transactionCount}
+                            </div>
+                        </div>
+                        <div className="bg-gray-800/60 rounded-xl p-4">
+                            <div className="text-xs text-gray-400 mb-1">Est. USD Spent</div>
+                            <div className="text-xl font-bold text-green-400">
+                                ${(spending.totalSpent / 1e18 * 2500).toFixed(2)}
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <p className="text-gray-500 text-sm">No spending data yet. Fund a channel to start!</p>
+                )}
+
+                {spending && spending.channelBreakdown.length > 0 && (
+                    <div className="mt-4">
+                        <div className="text-sm text-gray-400 mb-2">Channel Breakdown</div>
+                        <div className="space-y-2">
+                            {spending.channelBreakdown.map((ch) => (
+                                <div key={ch.channelId} className="bg-gray-800/40 rounded-lg p-3 flex justify-between items-center text-sm">
+                                    <div>
+                                        <span className="text-gray-300 font-mono">{ch.partnerAddress.slice(0, 8)}...</span>
+                                        <span className="text-gray-500 ml-2">({ch.channelId.slice(0, 8)}...)</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-red-400">{(ch.spent / 1e18).toFixed(6)} spent</span>
+                                        <span className="text-gray-500 mx-2">|</span>
+                                        <span className="text-green-400">{(ch.remaining / 1e18).toFixed(6)} left</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </motion.div>
+
             {/* Yellow Network Channels */}
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -563,6 +707,7 @@ export function WalletConnect() {
                             Open a payment channel to enable instant, gas-free transactions with agents.
                         </p>
                         <motion.button
+                            onClick={() => setShowFundModal(true)}
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
                             className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 text-black rounded-xl font-semibold transition"
@@ -613,7 +758,119 @@ export function WalletConnect() {
                     </div>
                 )
                 }
+
+                {/* Add Channel Button when channels exist */}
+                {wallet.channels.length > 0 && (
+                    <motion.button
+                        onClick={() => setShowFundModal(true)}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="w-full mt-4 py-3 bg-yellow-500/20 text-yellow-400 rounded-xl font-semibold hover:bg-yellow-500/30 transition border border-yellow-500/30"
+                    >
+                        + Fund New Channel
+                    </motion.button>
+                )}
             </motion.div >
+
+            {/* Fund Channel Modal */}
+            <AnimatePresence>
+                {showFundModal && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
+                        onClick={() => !isFunding && setShowFundModal(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            className="bg-gray-800 rounded-2xl p-8 border border-gray-600 max-w-md w-full mx-4"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <h2 className="text-2xl font-bold mb-2">⚡ Open Payment Channel</h2>
+                            <p className="text-gray-400 text-sm mb-6">
+                                Fund a Yellow Network channel for instant, zero-gas agent payments.
+                            </p>
+
+                            <div className="mb-4">
+                                <label className="text-sm text-gray-400 mb-2 block">Amount (ETH)</label>
+                                <input
+                                    type="number"
+                                    step="0.001"
+                                    min="0.001"
+                                    value={fundAmount}
+                                    onChange={(e) => setFundAmount(e.target.value)}
+                                    className="w-full bg-gray-700 border border-gray-600 rounded-xl px-4 py-3 text-lg font-mono focus:outline-none focus:border-yellow-500 transition"
+                                    placeholder="0.01"
+                                />
+                                <div className="flex gap-2 mt-2">
+                                    {['0.005', '0.01', '0.05', '0.1'].map(v => (
+                                        <button
+                                            key={v}
+                                            onClick={() => setFundAmount(v)}
+                                            className="px-3 py-1 bg-gray-700 rounded-lg text-xs hover:bg-gray-600 transition border border-gray-600"
+                                        >
+                                            {v} ETH
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="bg-gray-700/50 rounded-xl p-4 mb-6 text-sm">
+                                <div className="flex justify-between mb-1">
+                                    <span className="text-gray-400">Network</span>
+                                    <span className="text-blue-400">Base Sepolia</span>
+                                </div>
+                                <div className="flex justify-between mb-1">
+                                    <span className="text-gray-400">Gas for channel</span>
+                                    <span className="text-green-400">$0.00 (off-chain)</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-gray-400">Your balance</span>
+                                    <span>{parseFloat(wallet.ethBalance).toFixed(4)} ETH</span>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <motion.button
+                                    onClick={() => setShowFundModal(false)}
+                                    disabled={isFunding}
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    className="flex-1 py-3 bg-gray-700 rounded-xl font-semibold hover:bg-gray-600 transition"
+                                >
+                                    Cancel
+                                </motion.button>
+                                <motion.button
+                                    onClick={handleFundChannel}
+                                    disabled={isFunding}
+                                    whileHover={{ scale: isFunding ? 1 : 1.02 }}
+                                    whileTap={{ scale: isFunding ? 1 : 0.98 }}
+                                    className={`flex-1 py-3 rounded-xl font-semibold transition ${
+                                        isFunding
+                                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                            : 'bg-yellow-500 hover:bg-yellow-600 text-black'
+                                    }`}
+                                >
+                                    {isFunding ? (
+                                        <span className="flex items-center justify-center gap-2">
+                                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                            </svg>
+                                            Funding...
+                                        </span>
+                                    ) : (
+                                        '⚡ Fund Channel'
+                                    )}
+                                </motion.button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Info Section */}
             < motion.div

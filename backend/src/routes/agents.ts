@@ -30,16 +30,17 @@ router.post('/register', async (req: Request, res: Response) => {
             }
         }
 
-        const result = await AgentService.register(services, pricing);
+        const result = await AgentService.findOrRegister(services, pricing);
 
         // Return agent + privateKey (agent should store privateKey securely)
-        res.status(201).json({
+        res.status(result.alreadyExisted ? 200 : 201).json({
             success: true,
             data: {
                 ...result.agent,
                 privateKey: result.privateKey, // Agent keeps this for signing
+                reused: result.alreadyExisted, // Tell client this agent already existed
             },
-        } as ApiResponse<Agent & { privateKey: string }>);
+        } as ApiResponse<Agent & { privateKey: string; reused: boolean }>);
     } catch (error) {
         console.error('Error registering agent:', error);
         res.status(500).json({

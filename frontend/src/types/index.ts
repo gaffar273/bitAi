@@ -108,6 +108,14 @@ export interface WorkflowResult {
   revenueDistribution?: {
     participants: { wallet: string; share: number; payment: number }[];
   };
+  settlement?: {
+    autoSettled: boolean;
+    channelId: string;
+    status: string;
+    txHash?: string;
+    explorerUrl?: string;
+    error?: string;
+  };
   error?: string;
 }
 
@@ -384,6 +392,22 @@ export interface WalletInfoResponse {
     deposits: unknown[];
     channels: unknown[];
   };
+}
+
+// ============================================
+// Spending Summary Types
+// ============================================
+
+export interface SpendingSummary {
+  totalSpent: number;
+  totalChannelsFunded: number;
+  channelBreakdown: {
+    channelId: string;
+    partnerAddress: string;
+    spent: number;
+    remaining: number;
+  }[];
+  transactionCount: number;
 }
 
 // ============================================

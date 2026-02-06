@@ -334,6 +334,58 @@ export function WorkflowBuilder() {
             ))}
           </div>
 
+          {/* Settlement Status */}
+          {result.settlement && (
+            <div className={`mt-6 p-4 rounded-lg border ${
+              result.settlement.autoSettled
+                ? 'bg-green-900/20 border-green-500/50'
+                : 'bg-yellow-900/20 border-yellow-500/50'
+            }`}>
+              <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                {result.settlement.autoSettled ? '✅' : '⏳'}
+                Settlement
+              </h3>
+              <div className="text-sm space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Status</span>
+                  <span className={result.settlement.autoSettled ? 'text-green-400' : 'text-yellow-400'}>
+                    {result.settlement.status === 'settled_onchain'
+                      ? 'Settled On-Chain ✓'
+                      : result.settlement.status === 'settled_offchain'
+                      ? 'Settled Off-Chain ✓'
+                      : result.settlement.status === 'pending'
+                      ? 'Pending (manual settle needed)'
+                      : result.settlement.status}
+                  </span>
+                </div>
+                {result.settlement.txHash && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Tx Hash</span>
+                    <a
+                      href={result.settlement.explorerUrl || `https://sepolia.basescan.org/tx/${result.settlement.txHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-400 hover:underline font-mono text-xs"
+                    >
+                      {result.settlement.txHash.slice(0, 16)}...
+                    </a>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Channel</span>
+                  <span className="font-mono text-xs text-gray-300">
+                    {result.settlement.channelId.slice(0, 12)}...
+                  </span>
+                </div>
+                {result.settlement.error && (
+                  <div className="text-red-400 text-xs mt-1">
+                    Note: {result.settlement.error}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Revenue Distribution */}
           {result.revenueDistribution && (
             <div className="mt-6 p-4 bg-gray-800 rounded-lg">

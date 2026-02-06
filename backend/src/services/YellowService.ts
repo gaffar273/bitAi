@@ -584,6 +584,13 @@ export class YellowService {
     static async getSettlementData(channelId: string, userAddress: string) {
         const channel = channels.get(channelId);
         if (!channel) throw new Error('Channel not found');
+        if (channel.status === 'settled') throw new Error('Channel already settled');
+
+        // Determine user's role and balances
+        const isAgentA = channel.agentA.toLowerCase() === userAddress.toLowerCase();
+        const userBalance = isAgentA ? channel.balanceA : channel.balanceB;
+        const partnerBalance = isAgentA ? channel.balanceB : channel.balanceA;
+        const partnerAddress = isAgentA ? channel.agentB : channel.agentA;
 
         // Create settlement data
         const settlementData = {
@@ -596,46 +603,96 @@ export class YellowService {
             timestamp: Date.now(),
         };
 
-        // Create Hex data for the transaction
+        // Create Hex data for the on-chain proof transaction
         const data = ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify({
             type: 'YELLOW_SETTLEMENT',
             ...settlementData,
         })));
 
         return {
-            to: channel.agentB, // Send proof to the partner (Orchestrator) to close channel
+            // Self-transfer to record settlement proof on-chain (no smart contract needed)
+            to: userAddress,
             value: '0x0',
             data: data,
-            settlementData
+            channelId: channel.channelId,
+            settlementData,
+            // Summary for display
+            summary: {
+                userAddress,
+                partnerAddress,
+                userBalance,
+                partnerBalance,
+                totalTransactions: channel.nonce,
+            },
         };
     }
 
-    // Mark channel as settled (after client reports success)
+    // Mark channel as settled (after client reports on-chain tx success)
     static async markSettled(channelId: string, txHash: string) {
         const channel = channels.get(channelId);
         if (!channel) throw new Error('Channel not found');
 
+        // Find session for this channel
+        let sessionKey: string | null = null;
+        let session: YellowSession | null = null;
+        for (const [key, s] of sessions) {
+            if (s.channelId === channelId) {
+                sessionKey = key;
+                session = s;
+                break;
+            }
+        }
+
+        // Try to close the session on Yellow ClearNode (best-effort)
+        if (session && this.ws && this.ws.readyState === WebSocket.OPEN && config.privateKey) {
+            try {
+                const { createCloseAppSessionMessage } = await import('@erc7824/nitrolite');
+                const signer = this.createMessageSigner(config.privateKey);
+                const closeRequest = {
+                    app_session_id: session.sessionId,
+                    allocations: [
+                        { participant: channel.agentA, asset: 'eth', amount: channel.balanceA.toString() },
+                        { participant: channel.agentB, asset: 'eth', amount: channel.balanceB.toString() },
+                    ],
+                };
+                const signedMessage = await createCloseAppSessionMessage(
+                    signer as Parameters<typeof createCloseAppSessionMessage>[0],
+                    [closeRequest] as unknown as Parameters<typeof createCloseAppSessionMessage>[1]
+                );
+                this.ws.send(signedMessage);
+                console.log(`[Yellow] Close session sent to ClearNode for channel: ${channelId}`);
+            } catch (err) {
+                console.warn(`[Yellow] Could not close ClearNode session (non-fatal):`, err);
+            }
+        }
+
+        // Update local state
         channel.status = 'settled';
         channel.settleTxHash = txHash;
         channel.updatedAt = new Date();
         channels.set(channelId, channel);
 
-        // Find session and remove it
-        for (const [key, session] of sessions) {
-            if (session.channelId === channelId) {
-                sessions.delete(key);
-                break;
-            }
+        // Remove session
+        if (sessionKey) {
+            sessions.delete(sessionKey);
         }
 
         console.log(`[Yellow] Client settled channel on-chain: ${txHash}`);
+        console.log(`[Yellow] Final: ${channel.agentA.slice(0, 10)}... = ${channel.balanceA}, ${channel.agentB.slice(0, 10)}... = ${channel.balanceB}`);
 
         // Log to Ledger
         yellowLedger.push({
             timestamp: new Date().toISOString(),
             type: 'settlement',
             message: 'Client-side settlement on Base Sepolia',
-            data: { txHash, channelId }
+            data: {
+                txHash,
+                channelId,
+                finalBalances: {
+                    [channel.agentA]: channel.balanceA,
+                    [channel.agentB]: channel.balanceB,
+                },
+            }
         });
 
         return channel;

@@ -51,20 +51,27 @@ class BaseAgent:
         return sign_payment_iou(self.private_key, worker_wallet, amount, self.nonce)
 
     def register(self):
-        """Register this agent with the backend. Returns wallet and private key."""
+        """Register this agent with the backend. Reuses existing agent if already registered."""
+        # Check if we already have a wallet from env (already registered)
+        if self.wallet and self.private_key:
+            print(f"[{self.name}] Already registered with wallet: {self.wallet[:10]}...")
+            return {"wallet": self.wallet, "privateKey": self.private_key}
+
         payload = {
             "services": [{"type": self.service_type}],
             "pricing": [{"serviceType": self.service_type, "priceUsdc": self.price}]
         }
         try:
             response = requests.post(f"{self.backend_url}/agents/register", json=payload)
-            if response.status_code == 201:
+            if response.status_code in (200, 201):
                 data = response.json()
                 if data.get("success"):
                     agent_data = data["data"]
                     self.wallet = agent_data["wallet"]
                     self.private_key = agent_data["privateKey"]
-                    print(f"[{self.name}] Registered! Wallet: {self.wallet[:10]}...")
+                    reused = agent_data.get("reused", False)
+                    status = "Reused existing" if reused else "Registered new"
+                    print(f"[{self.name}] {status}! Wallet: {self.wallet[:10]}...")
                     return agent_data
             print(f"[{self.name}] Registration failed: {response.text}")
             return None

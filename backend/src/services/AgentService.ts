@@ -57,6 +57,32 @@ export class AgentService {
         }
     }
 
+    // Find an existing agent by service type, or register a new one
+    static async findOrRegister(
+        services: ServiceDef[],
+        pricing: PricingDef[]
+    ): Promise<AgentRegistrationResult & { alreadyExisted: boolean }> {
+        await this.loadCache();
+
+        // Check if an agent with the same service types already exists
+        const serviceTypes = services.map(s => s.type).sort().join(',');
+        for (const [wallet, existing] of agentCache.entries()) {
+            const existingTypes = existing.services.map((s: ServiceDef) => s.type).sort().join(',');
+            if (existingTypes === serviceTypes && existing.active) {
+                console.log(`[Agent] Found existing agent for [${serviceTypes}]: ${wallet.slice(0, 10)}...`);
+                // Update pricing if changed
+                existing.pricing = pricing;
+                existing.services = services;
+                agentCache.set(wallet, existing);
+                const pk = agentKeys.get(wallet) || '';
+                return { agent: existing, privateKey: pk, alreadyExisted: true };
+            }
+        }
+
+        // No existing agent found, create a new one
+        return { ...await this.register(services, pricing), alreadyExisted: false };
+    }
+
     // Register a new agent with auto-generated wallet
     static async register(
         services: ServiceDef[],

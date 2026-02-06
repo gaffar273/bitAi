@@ -185,6 +185,50 @@ export class WalletService {
     }
 
 
+    // Get total spending summary for a wallet
+    static async getSpendingSummary(address: string): Promise<{
+        totalSpent: number;
+        totalChannelsFunded: number;
+        channelBreakdown: { channelId: string; partnerAddress: string; spent: number; remaining: number }[];
+        transactionCount: number;
+    }> {
+        const sessions = await YellowService.getUserSessions(address);
+        let totalSpent = 0;
+        let totalChannelsFunded = 0;
+        const channelBreakdown: { channelId: string; partnerAddress: string; spent: number; remaining: number }[] = [];
+
+        for (const session of sessions) {
+            const channel = await YellowService.getChannel(session.channelId);
+            if (!channel) continue;
+
+            totalChannelsFunded++;
+            const isAgentA = channel.agentA.toLowerCase() === address.toLowerCase();
+            const currentBalance = isAgentA ? channel.balanceA : channel.balanceB;
+            // The other side's balance represents what was paid out
+            const otherBalance = isAgentA ? channel.balanceB : channel.balanceA;
+            totalSpent += otherBalance;
+
+            channelBreakdown.push({
+                channelId: session.channelId,
+                partnerAddress: session.partnerAddress,
+                spent: otherBalance,
+                remaining: currentBalance,
+            });
+        }
+
+        const allTx = await YellowService.getTransactions(undefined, 1000, 0);
+        const userTx = allTx.filter(
+            (tx: any) => tx.from?.toLowerCase() === address.toLowerCase()
+        );
+
+        return {
+            totalSpent,
+            totalChannelsFunded,
+            channelBreakdown,
+            transactionCount: userTx.length,
+        };
+    }
+
     // Get wallet info
     static getWalletInfo(address: string): WalletInfo | null {
         return wallets.get(address.toLowerCase()) || null;

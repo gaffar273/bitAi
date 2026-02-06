@@ -19,6 +19,14 @@ export interface WorkflowResult {
     revenueDistribution?: {
         participants: { wallet: string; share: number; payment: number }[];
     };
+    settlement?: {
+        autoSettled: boolean;
+        channelId: string;
+        status: string;
+        txHash?: string;
+        explorerUrl?: string;
+        error?: string;
+    };
     error?: string;
 }
 
@@ -52,6 +60,7 @@ export class OrchestratorService {
         let totalCost = 0;
         let totalDuration = 0;
         const startTime = Date.now();
+        const channelsCreated = new Set<string>();
 
         console.log(`\n[Orchestrator] Starting workflow with ${workflowSteps.length} steps...`);
         console.log(`[Orchestrator] Payer: ${orchestratorWallet.slice(0, 10)}...`);
@@ -118,6 +127,7 @@ export class OrchestratorService {
                                 process.env.PRIVATE_KEY
                             );
                             activeChannelId = session.channelId;
+                            channelsCreated.add(activeChannelId);
                             console.log(`[Orchestrator] Created Yellow channel: ${activeChannelId.slice(0, 10)}...`);
                         }
 
@@ -224,11 +234,66 @@ export class OrchestratorService {
                 }))
             );
 
+            // Auto-settle all channels created during this workflow
+            let settlement: WorkflowResult['settlement'] = undefined;
+            const allChannelIds = [...channelsCreated];
+            // Also include the provided channelId if it was used
+            if (channelId && channelId !== 'default-channel') {
+                allChannelIds.push(channelId);
+            }
+
+            if (allChannelIds.length > 0) {
+                const primaryChannelId = allChannelIds[0];
+                try {
+                    const { YellowService } = await import('./YellowService');
+
+                    // Try on-chain settlement if we have a private key
+                    const settleKey = process.env.PRIVATE_KEY;
+                    if (settleKey) {
+                        const result = await YellowService.settleOnChain(primaryChannelId, settleKey);
+                        settlement = {
+                            autoSettled: true,
+                            channelId: primaryChannelId,
+                            status: result.success ? 'settled_onchain' : 'settle_failed',
+                            txHash: result.txHash,
+                            explorerUrl: result.explorerUrl,
+                            error: result.error,
+                        };
+                        console.log(`[Orchestrator] Auto-settled channel on-chain: ${result.txHash || 'failed'}`);
+                    } else {
+                        // No private key — settle off-chain via Yellow ClearNode
+                        await YellowService.settle(primaryChannelId);
+                        settlement = {
+                            autoSettled: true,
+                            channelId: primaryChannelId,
+                            status: 'settled_offchain',
+                        };
+                        console.log(`[Orchestrator] Auto-settled channel off-chain: ${primaryChannelId}`);
+                    }
+
+                    // Settle remaining channels if any
+                    for (let i = 1; i < allChannelIds.length; i++) {
+                        try {
+                            await YellowService.settle(allChannelIds[i]);
+                        } catch { /* non-critical */ }
+                    }
+                } catch (settleError) {
+                    console.warn(`[Orchestrator] Auto-settlement failed (non-fatal):`, settleError);
+                    settlement = {
+                        autoSettled: false,
+                        channelId: primaryChannelId,
+                        status: 'pending',
+                        error: settleError instanceof Error ? settleError.message : 'Settlement failed',
+                    };
+                }
+            }
+
             return {
                 success: true,
                 steps: results,
                 totalCost,
                 totalDuration: workflowDuration,
+                settlement,
                 revenueDistribution: {
                     participants: distribution.participants.map(p => ({
                         wallet: p.agentWallet,

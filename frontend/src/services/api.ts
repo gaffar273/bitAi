@@ -41,6 +41,7 @@ import type {
   OnChainSettleResponse,
   WalletDepositsResponse,
   WalletInfoResponse,
+  SpendingSummary,
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
@@ -280,6 +281,13 @@ export const api = {
    */
   getWalletInfo: (address: string): Promise<AxiosResponse<WalletInfoResponse>> =>
     axios.get(`${API_BASE}/api/wallet/${address}`),
+
+  /**
+   * Get spending summary for a wallet
+   * GET /api/wallet/:address/spending
+   */
+  getSpendingSummary: (address: string): Promise<AxiosResponse<{ success: boolean; data: SpendingSummary }>> =>
+    axios.get(`${API_BASE}/api/wallet/${address}/spending`),
 };
 
 // ============================================
