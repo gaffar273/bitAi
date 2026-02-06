@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Globe, Palette, Search, FileText, Bot, Star, Circle, Play, Loader2, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { Globe, Palette, Search, FileText, Bot, Star, Circle, Play, Loader2, CheckCircle2, AlertCircle, X, Beaker, Terminal, LineChart, Shield, PenTool, Megaphone } from 'lucide-react';
 import type { Agent, ServiceType } from '../types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -62,6 +62,64 @@ const SERVICE_CONFIGS: Record<string, {
     bg: 'bg-pink-500/10',
     fields: [
       { key: 'prompt', label: 'Image Prompt', placeholder: 'Describe the image you want to generate...', type: 'textarea' },
+    ],
+  },
+  research: {
+    icon: Beaker,
+    name: 'Deep Research',
+    color: 'text-indigo-400',
+    bg: 'bg-indigo-500/10',
+    fields: [
+      { key: 'topic', label: 'Research Topic', placeholder: 'What topic should I research deeply?', type: 'text' },
+    ],
+  },
+  coding: {
+    icon: Terminal,
+    name: 'Code Assistant',
+    color: 'text-cyan-400',
+    bg: 'bg-cyan-500/10',
+    fields: [
+      { key: 'task', label: 'Coding Task', placeholder: 'Describe the function or script you need...', type: 'textarea' },
+      { key: 'language', label: 'Language', placeholder: 'Python, TypeScript, Rust...', type: 'text' },
+    ],
+  },
+  data_analysis: {
+    icon: LineChart,
+    name: 'Data Analyst',
+    color: 'text-teal-400',
+    bg: 'bg-teal-500/10',
+    fields: [
+      { key: 'data_source', label: 'Data Source', placeholder: 'URL or description of data...', type: 'text' },
+      { key: 'query', label: 'Analysis Query', placeholder: 'What insights do you need?', type: 'textarea' },
+    ],
+  },
+  security: {
+    icon: Shield,
+    name: 'Security Audit',
+    color: 'text-red-400',
+    bg: 'bg-red-500/10',
+    fields: [
+      { key: 'target', label: 'Target to Audit', placeholder: 'Smart contract address or URL...', type: 'text' },
+    ],
+  },
+  copywriting: {
+    icon: PenTool,
+    name: 'Creative Writer',
+    color: 'text-orange-400',
+    bg: 'bg-orange-500/10',
+    fields: [
+      { key: 'topic', label: 'Topic', placeholder: 'Blog post topic or ad copy subject...', type: 'text' },
+      { key: 'tone', label: 'Tone', placeholder: 'Professional, witty, persuasive...', type: 'text' },
+    ],
+  },
+  marketing: {
+    icon: Megaphone,
+    name: 'Marketing SEO',
+    color: 'text-yellow-400',
+    bg: 'bg-yellow-500/10',
+    fields: [
+      { key: 'keyword', label: 'Target Keywords', placeholder: 'Keywords to analyze...', type: 'text' },
+      { key: 'url', label: 'Page URL', placeholder: 'https://...', type: 'url' },
     ],
   },
 };
@@ -130,10 +188,93 @@ export function AgentCard({ agent }: Props) {
     'scraper': Search,
     'summarizer': FileText,
     'pdf_loader': FileText,
+    'research': Beaker,
+    'coding': Terminal,
+    'data_analysis': LineChart,
+    'security': Shield,
+    'copywriting': PenTool,
+    'marketing': Megaphone,
   };
 
   const ServiceIcon = serviceIcons[serviceType] || Bot;
   const config = SERVICE_CONFIGS[serviceType];
+
+  // Helper function to format output based on service type
+  const formatOutput = (output: any, currentServiceType: string) => {
+    if (!output) return <div className="text-gray-500">No output</div>;
+
+    // Special formatting for scraper output
+    if (currentServiceType === 'scraper' && typeof output === 'object') {
+      const { title, content, word_count, url, status, error } = output;
+
+      if (error) {
+        return (
+          <div className="space-y-2">
+            <div className="text-red-400 font-medium">❌ Scraping Failed</div>
+            <div className="text-red-400/70 text-sm">{error}</div>
+            {url && <div className="text-gray-500 text-xs mt-2">URL: {url}</div>}
+          </div>
+        );
+      }
+
+      return (
+        <div className="space-y-4">
+          {/* Title */}
+          {title && (
+            <div>
+              <div className="text-xs text-blue-400 uppercase tracking-wider mb-1">Page Title</div>
+              <div className="text-lg font-semibold text-white">{title}</div>
+            </div>
+          )}
+
+          {/* Meta info */}
+          <div className="flex gap-4 text-sm">
+            {word_count && (
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500">Words:</span>
+                <span className="text-green-400 font-medium">{word_count.toLocaleString()}</span>
+              </div>
+            )}
+            {status && (
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500">Status:</span>
+                <span className="text-green-400 font-medium capitalize">{status}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Content preview */}
+          {content && (
+            <div>
+              <div className="text-xs text-purple-400 uppercase tracking-wider mb-2">Extracted Content</div>
+              <div className="bg-gray-900/50 p-4 rounded border border-gray-800 max-h-96 overflow-y-auto">
+                <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">
+                  {content.length > 1000 ? `${content.substring(0, 1000)}...` : content}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* URL */}
+          {url && (
+            <div className="text-xs text-gray-500 truncate">
+              <span className="text-gray-600">Source: </span>
+              <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 hover:underline">
+                {url}
+              </a>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Default JSON formatting for other services
+    return (
+      <pre className="text-sm text-gray-200 whitespace-pre-wrap font-mono">
+        {typeof output === 'object' ? JSON.stringify(output, null, 2) : String(output)}
+      </pre>
+    );
+  };
 
   const handleExecute = async () => {
     setExecuting(true);
@@ -376,10 +517,8 @@ export function AgentCard({ agent }: Props) {
                 {/* Output */}
                 <div>
                   <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">Output</div>
-                  <div className="p-4 bg-gray-950 rounded-lg border border-gray-800 max-h-64 overflow-y-auto">
-                    <pre className="text-sm text-gray-200 whitespace-pre-wrap font-mono">
-                      {formatOutput(result.output)}
-                    </pre>
+                  <div className="p-4 bg-gray-950 rounded-lg border border-gray-800">
+                    {formatOutput(result.output, serviceType)}
                   </div>
                 </div>
               </div>
