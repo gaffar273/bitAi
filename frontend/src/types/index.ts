@@ -2,7 +2,7 @@
 // Service & Pricing Types
 // ============================================
 
-export type ServiceType = 'translation' | 'image_gen' | 'scraper' | 'summarizer' | 'orchestrator';
+export type ServiceType = 'translation' | 'image_gen' | 'scraper' | 'summarizer' | 'orchestrator' | 'pdf_loader';
 
 export interface Service {
   type: ServiceType;
@@ -97,6 +97,7 @@ export interface ExecuteWorkflowRequest {
   orchestratorWallet: string;
   steps: WorkflowStep[];
   channelId?: string;
+  userWallet?: string;
 }
 
 export interface WorkflowResult {
@@ -104,11 +105,24 @@ export interface WorkflowResult {
   steps: WorkflowStepResult[];
   totalCost: number;
   totalDuration: number;
+  revenueDistribution?: {
+    participants: { wallet: string; share: number; payment: number }[];
+  };
+  settlement?: {
+    autoSettled: boolean;
+    channelId: string;
+    status: string;
+    txHash?: string;
+    explorerUrl?: string;
+    error?: string;
+  };
+  error?: string;
 }
 
 export interface ExecuteWorkflowResponse {
   success: boolean;
   data: WorkflowResult;
+  error?: string;
 }
 
 export interface PricingComparison {
@@ -134,6 +148,8 @@ export interface OpenChannelRequest {
   balance_b: string; // wei (18 decimals)
 }
 
+// OpenChannelRequest removed duplicates
+
 export interface OpenChannelResponse {
   success: boolean;
   data: {
@@ -149,8 +165,9 @@ export interface PaymentChannel {
   balanceA: number;
   balanceB: number;
   nonce: number;
-  status: 'open' | 'closed' | 'settling';
+  status: 'open' | 'closed' | 'settling' | 'settled';
   openTxHash: string;
+  settleTxHash?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -198,6 +215,21 @@ export interface SettleChannelResponse {
 // ============================================
 // Transaction Types
 // ============================================
+
+export interface ClientSettleResponse {
+  success: boolean;
+  data: {
+    requires_signing: boolean;
+    tx_data: {
+      to: string;
+      data: string;
+      value: string;
+      chainId: number;
+    };
+    channel_id?: string;
+    message: string;
+  };
+}
 
 export interface Transaction {
   id: string;
@@ -276,7 +308,7 @@ export interface WalletBalanceResponse {
 }
 
 export interface DepositRequest {
-  amount: number;
+  amount: string; // wei (string for large numbers)
   txHash: string;
   token?: string;
 }
@@ -309,7 +341,7 @@ export interface WalletChannelsResponse {
 }
 
 export interface FundChannelRequest {
-  amount: number;
+  amount: string;
   partnerAddress?: string;
   private_key?: string;
 }
@@ -317,6 +349,7 @@ export interface FundChannelRequest {
 export interface FundChannelResponse {
   success: boolean;
   data: {
+    sessionId: string;
     channelId: string;
     balance: number;
     status: string;
@@ -378,6 +411,22 @@ export interface WalletInfoResponse {
     deposits: unknown[];
     channels: unknown[];
   };
+}
+
+// ============================================
+// Spending Summary Types
+// ============================================
+
+export interface SpendingSummary {
+  totalSpent: number;
+  totalChannelsFunded: number;
+  channelBreakdown: {
+    channelId: string;
+    partnerAddress: string;
+    spent: number;
+    remaining: number;
+  }[];
+  transactionCount: number;
 }
 
 // ============================================

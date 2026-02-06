@@ -1,10 +1,13 @@
 import { Agent, ServiceDef, PricingDef } from '../types';
 import { generateAgentWallet, generateId } from '../utils/blockchain';
+import { getSQL } from './DatabaseService';
 
-// In-memory storage (replace with PostgreSQL later)
-const agents: Map<string, Agent> = new Map();
+// In-memory cache (used when database not available or for fast lookups)
+const agentsCache: Map<string, Agent> = new Map();
 // Store private keys separately (in production, agent keeps its own key)
 const agentKeys: Map<string, string> = new Map();
+// Track if we've loaded from DB
+let cacheInitialized = false;
 
 // Agent registration result includes privateKey for the agent to keep
 export interface AgentRegistrationResult {
@@ -21,11 +24,48 @@ export interface ExecutionResult {
 }
 
 export class AgentService {
+    // Initialize cache from database on first call
+    private static async ensureCacheInitialized(): Promise<void> {
+        if (cacheInitialized) return;
+
+        const sql = getSQL();
+        if (sql) {
+            try {
+                const rows = await sql`
+                    SELECT id, wallet, services, pricing, reputation, active, created_at
+                    FROM agents
+                    WHERE active = true
+                `;
+
+                for (const row of rows) {
+                    const agent: Agent = {
+                        id: row.id,
+                        wallet: row.wallet,
+                        services: row.services as ServiceDef[],
+                        pricing: row.pricing as PricingDef[],
+                        reputation: row.reputation,
+                        active: row.active,
+                        createdAt: row.created_at,
+                    };
+                    agentsCache.set(agent.wallet, agent);
+                }
+
+                console.log(`[Agent] Loaded ${rows.length} agents from database`);
+            } catch (error) {
+                console.error('[Agent] Failed to load agents from database:', error);
+            }
+        }
+
+        cacheInitialized = true;
+    }
+
     // Register a new agent with auto-generated wallet
     static async register(
         services: ServiceDef[],
         pricing: PricingDef[]
     ): Promise<AgentRegistrationResult> {
+        await this.ensureCacheInitialized();
+
         const { address, privateKey } = generateAgentWallet();
 
         const agent: Agent = {
@@ -38,7 +78,22 @@ export class AgentService {
             createdAt: new Date(),
         };
 
-        agents.set(agent.wallet, agent);
+        // Save to database if available
+        const sql = getSQL();
+        if (sql) {
+            try {
+                await sql`
+                    INSERT INTO agents (id, wallet, services, pricing, reputation, active, created_at)
+                    VALUES (${agent.id}, ${agent.wallet}, ${JSON.stringify(services)}, ${JSON.stringify(pricing)}, ${agent.reputation}, ${agent.active}, ${agent.createdAt})
+                `;
+                console.log(`[Agent] Saved to database: ${agent.wallet.slice(0, 10)}...`);
+            } catch (error) {
+                console.error('[Agent] Failed to save agent to database:', error);
+            }
+        }
+
+        // Always update cache
+        agentsCache.set(agent.wallet, agent);
         agentKeys.set(agent.wallet, privateKey);
 
         console.log(`[Agent] Registered: ${agent.wallet.slice(0, 10)}... | Services: ${services.map(s => s.type).join(', ')}`);
@@ -46,13 +101,18 @@ export class AgentService {
         return { agent, privateKey };
     }
 
-    // Execute a service (mock for demo - real execution would call AI)
+    /**
+     * Execute a service by calling the Python agent server.
+     * Falls back to mock if agent server is not available.
+     */
     static async execute(
         wallet: string,
         serviceType: string,
         input: unknown
     ): Promise<ExecutionResult> {
-        const agent = agents.get(wallet);
+        await this.ensureCacheInitialized();
+
+        const agent = agentsCache.get(wallet);
         if (!agent) throw new Error('Agent not found');
         if (!agent.active) throw new Error('Agent is not active');
 
@@ -64,23 +124,50 @@ export class AgentService {
 
         const startTime = Date.now();
 
-        // Mock execution based on service type
+        // Try to call the Python agent server
+        const agentServerUrl = process.env.AGENT_SERVER_URL || 'http://localhost:5001';
+
         let output: unknown;
-        switch (serviceType) {
-            case 'translation':
-                output = { translated: `[Translated] ${JSON.stringify(input)}`, language: 'es' };
-                break;
-            case 'image_gen':
-                output = { imageUrl: `https://placeholder.com/ai-generated-${Date.now()}.png` };
-                break;
-            case 'scraper':
-                output = { data: { title: 'Scraped Content', content: 'Mock scraped data...' } };
-                break;
-            case 'summarizer':
-                output = { summary: `Summary of: ${JSON.stringify(input).slice(0, 50)}...` };
-                break;
-            default:
-                output = { result: 'Service executed', input };
+        try {
+            const response = await fetch(`${agentServerUrl}/execute`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    service_type: serviceType,
+                    input: input
+                })
+            });
+
+            if (response.ok) {
+                const result = await response.json() as { success: boolean; output?: unknown; error?: string };
+                if (result.success) {
+                    output = result.output;
+                    console.log(`[Agent] ${wallet.slice(0, 10)}... executed ${serviceType} via Python agent | Cost: $${cost}`);
+                } else {
+                    throw new Error(result.error || 'Agent execution failed');
+                }
+            } else {
+                throw new Error(`Agent server returned ${response.status}`);
+            }
+        } catch (error) {
+            // Fallback to mock if agent server not available
+            console.log(`[Agent] Python agent server not available, using mock for ${serviceType}`);
+            switch (serviceType) {
+                case 'translation':
+                    output = { translated: `[Translated] ${JSON.stringify(input)}`, language: 'hi' };
+                    break;
+                case 'image_gen':
+                    output = { imageUrl: `https://placeholder.com/ai-generated-${Date.now()}.png` };
+                    break;
+                case 'scraper':
+                    output = { data: { title: 'Scraped Content', content: 'Mock scraped data...' } };
+                    break;
+                case 'summarizer':
+                    output = { summary: `Summary of: ${JSON.stringify(input).slice(0, 50)}...` };
+                    break;
+                default:
+                    output = { result: 'Service executed', input };
+            }
         }
 
         const duration = Date.now() - startTime;
@@ -97,38 +184,123 @@ export class AgentService {
 
     // Get all agents
     static async getAll(): Promise<Agent[]> {
-        return Array.from(agents.values()).filter((a) => a.active);
+        await this.ensureCacheInitialized();
+        return Array.from(agentsCache.values()).filter((a) => a.active);
     }
 
     // Get agents by service type
     static async getByServiceType(serviceType: string): Promise<Agent[]> {
-        return Array.from(agents.values()).filter(
+        await this.ensureCacheInitialized();
+        return Array.from(agentsCache.values()).filter(
             (a) => a.active && a.services.some((s) => s.type === serviceType)
         );
     }
 
     // Get agent by wallet address
     static async getByWallet(wallet: string): Promise<Agent | null> {
-        return agents.get(wallet) || null;
+        await this.ensureCacheInitialized();
+        return agentsCache.get(wallet) || null;
     }
 
     // Update agent reputation
     static async updateReputation(wallet: string, delta: number): Promise<Agent | null> {
-        const agent = agents.get(wallet);
+        await this.ensureCacheInitialized();
+
+        const agent = agentsCache.get(wallet);
         if (!agent) return null;
 
         agent.reputation = Math.max(0, Math.min(1000, agent.reputation + delta));
-        agents.set(wallet, agent);
+        agentsCache.set(wallet, agent);
+
+        // Update in database
+        const sql = getSQL();
+        if (sql) {
+            try {
+                await sql`
+                    UPDATE agents SET reputation = ${agent.reputation}, updated_at = NOW()
+                    WHERE wallet = ${wallet}
+                `;
+            } catch (error) {
+                console.error('[Agent] Failed to update reputation in database:', error);
+            }
+        }
+
         return agent;
     }
 
     // Deactivate agent
     static async deactivate(wallet: string): Promise<boolean> {
-        const agent = agents.get(wallet);
+        await this.ensureCacheInitialized();
+
+        const agent = agentsCache.get(wallet);
         if (!agent) return false;
 
         agent.active = false;
-        agents.set(wallet, agent);
+        agentsCache.set(wallet, agent);
+
+        // Update in database
+        const sql = getSQL();
+        if (sql) {
+            try {
+                await sql`
+                    UPDATE agents SET active = false, updated_at = NOW()
+                    WHERE wallet = ${wallet}
+                `;
+            } catch (error) {
+                console.error('[Agent] Failed to deactivate agent in database:', error);
+            }
+        }
+
         return true;
+    }
+
+    // Store private key (for agents registered with external wallets)
+    static setPrivateKey(wallet: string, privateKey: string): void {
+        agentKeys.set(wallet, privateKey);
+    }
+
+    // Get agent count (for debugging)
+    static async getCount(): Promise<{ cache: number; database: number }> {
+        await this.ensureCacheInitialized();
+
+        let dbCount = 0;
+        const sql = getSQL();
+        if (sql) {
+            try {
+                const result = await sql`SELECT COUNT(*) as count FROM agents WHERE active = true`;
+                dbCount = parseInt(result[0].count, 10);
+            } catch (error) {
+                console.error('[Agent] Failed to get count from database:', error);
+            }
+        }
+
+        return {
+            cache: agentsCache.size,
+            database: dbCount,
+        };
+    }
+
+    // Clear all agents (for development/testing)
+    static async clearAll(): Promise<number> {
+        const sql = getSQL();
+        let deleted = 0;
+
+        if (sql) {
+            try {
+                const result = await sql`DELETE FROM agents RETURNING id`;
+                deleted = result.length;
+                console.log(`[Agent] Deleted ${deleted} agents from database`);
+            } catch (error) {
+                console.error('[Agent] Failed to clear agents from database:', error);
+            }
+        }
+
+        // Clear cache
+        agentsCache.clear();
+        agentKeys.clear();
+        cacheInitialized = false;
+
+        console.log('[Agent] Cache cleared');
+        return deleted;
     }
 }

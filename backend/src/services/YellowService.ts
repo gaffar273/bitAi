@@ -1,4 +1,10 @@
 import WebSocket from 'ws';
+
+// Fix BigInt serialization for JSON.stringify used in SDK
+(BigInt.prototype as any).toJSON = function () {
+    return this.toString();
+};
+
 import { ethers } from 'ethers';
 import { config } from '../config';
 import { PaymentChannel, StateUpdate, Transaction } from '../types';
@@ -34,13 +40,16 @@ export class YellowService {
     static createMessageSigner(privateKey: string) {
         const wallet = new ethers.Wallet(privateKey);
         return async (payload: unknown): Promise<string> => {
-            const message = typeof payload === 'string' ? payload : JSON.stringify(payload);
+            // Handle BigInt serialization (convert to string)
+            const message = typeof payload === 'string'
+                ? payload
+                : JSON.stringify(payload, (_, v) => typeof v === 'bigint' ? v.toString() : v);
             return await wallet.signMessage(message);
         };
     }
 
-    // Connect to Yellow ClearNode
-    static async connect(): Promise<void> {
+    // Connect to Yellow ClearNode with retries
+    static async connect(retries = 3, delay = 2000): Promise<void> {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             return;
         }
@@ -50,12 +59,20 @@ export class YellowService {
         }
 
         this.connectionPromise = new Promise((resolve, reject) => {
-            console.log(`[Yellow] Connecting to: ${config.yellowWsUrl}`);
+            console.log(`[Yellow] Connecting to: ${config.yellowWsUrl} (Attempt ${4 - retries}/3)`);
 
             this.ws = new WebSocket(config.yellowWsUrl);
 
+            const timer = setTimeout(() => {
+                if (this.ws?.readyState !== WebSocket.OPEN) {
+                    this.ws?.close(); // Ensure we close the hanged connection
+                    reject(new Error('Connection timeout'));
+                }
+            }, 15000); // Increased to 15s
+
             this.ws.onopen = () => {
                 console.log('[Yellow] Connected to ClearNode!');
+                clearTimeout(timer);
                 resolve();
             };
 
@@ -65,7 +82,7 @@ export class YellowService {
 
             this.ws.onerror = (error) => {
                 console.error('[Yellow] WebSocket error:', error);
-                reject(error);
+                // Don't reject here immediately, let close/timeout handle it or immediate failure
             };
 
             this.ws.onclose = () => {
@@ -73,15 +90,19 @@ export class YellowService {
                 this.ws = null;
                 this.connectionPromise = null;
             };
-
-            setTimeout(() => {
-                if (this.ws?.readyState !== WebSocket.OPEN) {
-                    reject(new Error('Connection timeout'));
-                }
-            }, 10000);
         });
 
-        return this.connectionPromise;
+        try {
+            await this.connectionPromise;
+        } catch (error) {
+            this.connectionPromise = null; // Reset promise
+            if (retries > 0) {
+                console.log(`[Yellow] Connection failed, retrying in ${delay}ms...`);
+                await new Promise(r => setTimeout(r, delay));
+                return this.connect(retries - 1, delay * 1.5);
+            }
+            throw error;
+        }
     }
 
     // Create a payment session between two agents using Nitrolite SDK
@@ -169,21 +190,27 @@ export class YellowService {
         _signerPrivateKey?: string
     ): Promise<{ transaction: Transaction; channel: PaymentChannel }> {
         const channel = channels.get(channelId);
-        if (!channel) throw new Error('Channel not found');
+        if (!channel) {
+            console.log(`[Yellow] Channel not found: ${channelId}`);
+            console.log(`[Yellow] Available channels: ${Array.from(channels.keys()).join(', ') || 'none'}`);
+            throw new Error('Channel not found');
+        }
         if (channel.status !== 'open') throw new Error('Channel is not open');
 
         const amountNum = parseInt(amount);
 
-        // Validate and update balances
-        if (from === channel.agentA) {
+        // Validate and update balances (case-insensitive comparison for Ethereum addresses)
+        const fromLower = from.toLowerCase();
+        if (fromLower === channel.agentA.toLowerCase()) {
             if (channel.balanceA < amountNum) throw new Error('Insufficient balance');
             channel.balanceA -= amountNum;
             channel.balanceB += amountNum;
-        } else if (from === channel.agentB) {
+        } else if (fromLower === channel.agentB.toLowerCase()) {
             if (channel.balanceB < amountNum) throw new Error('Insufficient balance');
             channel.balanceB -= amountNum;
             channel.balanceA += amountNum;
         } else {
+            console.log(`[Yellow] Sender mismatch: from=${from}, agentA=${channel.agentA}, agentB=${channel.agentB}`);
             throw new Error('Sender not in channel');
         }
 
@@ -524,6 +551,38 @@ export class YellowService {
                 error: error instanceof Error ? error.message : 'Settlement failed',
             };
         }
+    }
+
+    // Generate settlement transaction data (unsigned) for client-side signing
+    static async generateSettlementTxData(channelId: string): Promise<{
+        to: string;
+        data: string;
+        value: string;
+        chainId: number;
+    }> {
+        const channel = channels.get(channelId);
+        if (!channel) throw new Error('Channel not found');
+
+        // Create settlement JSON payload
+        const settlementData = {
+            type: 'YELLOW_SETTLEMENT',
+            channelId: channel.channelId,
+            agentA: channel.agentA,
+            agentB: channel.agentB,
+            balanceA: channel.balanceA,
+            balanceB: channel.balanceB,
+            nonce: channel.nonce,
+            timestamp: Date.now(),
+        };
+
+        const data = ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(settlementData)));
+
+        return {
+            to: channel.agentB, // Send to agent pool - MetaMask rejects data transactions to self (internal accounts)
+            data,
+            value: '0',
+            chainId: config.baseSepolia.chainId,
+        };
     }
 
     // Disconnect

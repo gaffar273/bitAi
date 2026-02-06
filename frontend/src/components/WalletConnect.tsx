@@ -1,9 +1,12 @@
-import { Wallet, Copy, Check, RefreshCw, ExternalLink, AlertCircle, Loader2 } from 'lucide-react';
+import { Wallet, Copy, Check, RefreshCw, ExternalLink, AlertCircle, Loader2, Plus, ArrowUpRight } from 'lucide-react';
 import type { WalletState } from '../hooks/use-wallet';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
+import { PaymentChannelCard } from './PaymentChannelCard';
+import { api } from '../services/api';
+import type { ClientSettleResponse, OnChainSettleResponse } from '../types';
 
 interface Props {
     wallet: WalletState;
@@ -14,6 +17,8 @@ interface Props {
 
 export function WalletConnect({ wallet, connectWallet, disconnectWallet, refreshBalance }: Props) {
     const [copied, setCopied] = useState(false);
+    const [openingChannel, setOpeningChannel] = useState(false);
+    const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
     const isMetaMaskInstalled = typeof window !== 'undefined' && Boolean(window.ethereum?.isMetaMask);
 
     const copyAddress = () => {
@@ -27,6 +32,171 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
     const formatAddress = (address: string | null) => {
         if (!address) return '';
         return `${address.slice(0, 6)}...${address.slice(-4)}`;
+    };
+
+    const handleOpenChannel = async () => {
+        if (!wallet.address) return;
+        setOpeningChannel(true);
+        try {
+            const depositAmount = '1000000000000000'; // 0.001 ETH in wei
+            const platformAddress = '0x0000000000000000000000000000000000000001'; // Agent Pool
+
+            // 1. Send real ETH via MetaMask to platform
+            if (!window.ethereum) {
+                alert('MetaMask is required to deposit ETH');
+                return;
+            }
+
+            // Request user to send ETH to platform
+            const txHash = await window.ethereum.request({
+                method: 'eth_sendTransaction',
+                params: [{
+                    from: wallet.address,
+                    to: platformAddress,
+                    value: '0x' + BigInt(depositAmount).toString(16), // 0.01 ETH in hex
+                }],
+            });
+
+            console.log('[WalletConnect] Deposit tx sent:', txHash);
+
+            // 2. Create channel after deposit
+            await api.fundWalletChannel(wallet.address, {
+                amount: depositAmount,
+                partnerAddress: platformAddress,
+            });
+
+            // 3. Record the deposit
+            await api.recordDeposit(wallet.address, {
+                amount: depositAmount,
+                txHash: txHash as string,
+                token: 'ETH',
+            });
+
+            refreshBalance();
+        } catch (error) {
+            console.error('Failed to open channel:', error);
+            alert('Failed to open channel. Transaction may have been rejected.');
+        } finally {
+            setOpeningChannel(false);
+        }
+    };
+
+    const handleSettleChannel = async (channelId: string) => {
+        try {
+            const response = await api.settleChannel({ channel_id: channelId });
+            const data = response.data;
+
+            // Check if we need to sign (new flow)
+            // Using a type guard-like check
+            const responseData = data;
+            if ('data' in responseData && 'requires_signing' in responseData.data && (responseData as ClientSettleResponse).data.requires_signing) {
+                const clientData = responseData as ClientSettleResponse;
+                const txData = clientData.data.tx_data;
+
+                if (!window.ethereum) {
+                    alert('MetaMask is required to sign the settlement.');
+                    return;
+                }
+
+                alert('Please sign the settlement transaction in MetaMask.');
+
+                // Request signature/send transaction via MetaMask
+                // For settlement, we are sending a transaction
+                const params = [
+                    {
+                        from: wallet.address,
+                        to: txData.to,
+                        value: '0x0', // 0 value for now, or txData.value (hex)
+                        data: txData.data,
+                        chainId: '0x' + txData.chainId.toString(16),
+                    },
+                ];
+
+                const txHash = await window.ethereum.request({
+                    method: 'eth_sendTransaction',
+                    params,
+                });
+
+                console.log('Client-side settlement tx sent:', txHash);
+
+                // Notify backend
+                await api.settleCallback(
+                    wallet.address!,
+                    channelId,
+                    txHash,
+                    '', // openTxHash (not needed for this update)
+                    txHash // settleTxHash
+                );
+
+                alert(`Settlement transaction sent! Hash: ${txHash}`);
+            }
+            // Legacy flow (if backend still signed it)
+            else if (responseData.success && !('requires_signing' in responseData.data)) {
+                // legacy success handling
+            }
+
+            refreshBalance();
+        } catch (error) {
+            console.error('Settlement failed:', error);
+            alert('Settlement failed.');
+        }
+    };
+
+    const handleSettleOnChain = async (channelId: string) => {
+        if (!wallet.address) return;
+        try {
+            // Use the REAL on-chain settlement endpoint - sends transaction to Base Sepolia
+            const result = await api.settleChannelOnChain({ channel_id: channelId });
+            const data = result.data;
+
+            // Handle client-side signing
+            const responseData = data;
+            if (responseData.success && 'data' in responseData && 'requires_signing' in responseData.data && (responseData as ClientSettleResponse).data.requires_signing) {
+                const clientData = responseData as ClientSettleResponse;
+                const txData = clientData.data.tx_data;
+
+                if (!window.ethereum) {
+                    alert('MetaMask is required for on-chain settlement.');
+                    return;
+                }
+
+                const params = [
+                    {
+                        from: wallet.address,
+                        to: txData.to,
+                        data: txData.data,
+                        // value: txData.value, // Usually 0 for settlement data calls
+                        chainId: '0x' + txData.chainId.toString(16),
+                    },
+                ];
+
+                const txHash = await window.ethereum.request({
+                    method: 'eth_sendTransaction',
+                    params,
+                });
+
+                console.log('On-chain settlement tx sent:', txHash);
+
+                // Notify backend
+                await api.settleCallback(
+                    wallet.address,
+                    channelId,
+                    txHash,
+                    '',
+                    txHash
+                );
+
+                alert(`On-chain settlement complete!\nTx: ${txHash}`);
+            }
+            else if (responseData.success && 'data' in responseData && 'tx_hash' in responseData.data) {
+                const legacyData = (responseData as OnChainSettleResponse).data;
+                alert(`On-chain settlement complete!\nTx: ${legacyData.tx_hash}\nView on explorer: ${legacyData.explorer_url}`);
+            }
+            refreshBalance();
+        } catch (error) {
+            console.error('On-chain settlement failed:', error);
+            alert('On-chain settlement failed. Make sure you have ETH for gas.');
+        }
     };
 
     // Not connected state
@@ -183,51 +353,87 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
             {/* Channels Card */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Yellow Network Channels</CardTitle>
-                    <CardDescription>
-                        Active payment channels on the Yellow Network
-                    </CardDescription>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle>Yellow Network Channels</CardTitle>
+                            <CardDescription>
+                                Active payment channels for agent workflows
+                            </CardDescription>
+                        </div>
+                        <Button
+                            size="sm"
+                            onClick={handleOpenChannel}
+                            disabled={openingChannel}
+                            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                        >
+                            {openingChannel ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <>
+                                    <Plus className="w-4 h-4 mr-1" />
+                                    Open Channel
+                                </>
+                            )}
+                        </Button>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     {wallet.channels.length === 0 ? (
-                        <div className="text-center py-8 text-gray-400">
-                            <p>No active channels</p>
-                            <p className="text-sm mt-2">Open a channel to start trading</p>
+                        <div className="text-center py-8 text-gray-400 border-2 border-dashed border-gray-700 rounded-lg">
+                            <Wallet className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                            <p className="font-medium">No active channels</p>
+                            <p className="text-sm mt-2">Open a channel to start payments with agents</p>
                         </div>
                     ) : (
-                        <div className="space-y-3">
-                            {wallet.channels.map((channel, index) => (
-                                <div
-                                    key={index}
-                                    className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg border border-gray-700/50"
-                                >
-                                    <div>
-                                        <div className="font-medium">Channel #{channel.channelId}</div>
-                                        <div className="text-sm text-gray-400 mt-1">
-                                            Counterparty: {formatAddress(channel.partnerAddress)}
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-blue-400 font-semibold">
-                                            {(channel.balance / 1e18).toFixed(4)} ETH
-                                        </div>
-                                        <Badge
-                                            variant={channel.status === 'open' ? 'default' : 'secondary'}
-                                            className="text-xs mt-1"
+                        <div className="space-y-4">
+                            {wallet.channels.map((channel) => (
+                                <div key={channel.channelId}>
+                                    {selectedChannel === channel.channelId ? (
+                                        <PaymentChannelCard
+                                            channelId={channel.channelId}
+                                            onSettle={() => handleSettleChannel(channel.channelId)}
+                                            onSettleOnChain={() => handleSettleOnChain(channel.channelId)}
+                                            showTransactions={true}
+                                        />
+                                    ) : (
+                                        <div
+                                            className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg border border-gray-700/50 hover:border-purple-500/30 cursor-pointer transition-colors"
+                                            onClick={() => setSelectedChannel(channel.channelId)}
                                         >
-                                            {channel.status}
-                                        </Badge>
-                                    </div>
+                                            <div>
+                                                <div className="font-medium flex items-center gap-2">
+                                                    Channel
+                                                    <code className="text-xs text-gray-400">
+                                                        {channel.channelId.slice(0, 12)}...
+                                                    </code>
+                                                </div>
+                                                <div className="text-sm text-gray-400 mt-1">
+                                                    Partner: {formatAddress(channel.partnerAddress)}
+                                                </div>
+                                            </div>
+                                            <div className="text-right flex items-center gap-3">
+                                                <div>
+                                                    <div className="text-blue-400 font-semibold">
+                                                        {(channel.balance / 1e18).toFixed(4)} ETH
+                                                    </div>
+                                                    <Badge
+                                                        variant={channel.status === 'open' ? 'default' : 'secondary'}
+                                                        className="text-xs mt-1"
+                                                    >
+                                                        {channel.status}
+                                                    </Badge>
+                                                </div>
+                                                <ArrowUpRight className="w-4 h-4 text-gray-500" />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
                     )}
-
-                    <Button className="w-full mt-4" variant="outline">
-                        Open New Channel
-                    </Button>
                 </CardContent>
             </Card>
         </div>
     );
 }
+

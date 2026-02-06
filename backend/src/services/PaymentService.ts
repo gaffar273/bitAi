@@ -18,7 +18,8 @@ export class PaymentService {
         from: string,
         to: string,
         amount: number,
-        privateKey?: string
+        privateKey?: string,
+        actualRecipient?: string // For logging the actual agent that provided service
     ) {
         // Execute payment via Yellow
         const result = await YellowService.sendPayment(
@@ -29,10 +30,10 @@ export class PaymentService {
             privateKey
         );
 
-        // Log transaction
+        // Log transaction - use actualRecipient for tracking which agent was paid
         await TransactionLogger.logTransaction({
             fromWallet: from,
-            toWallet: to,
+            toWallet: actualRecipient || to,
             amount,
             channelId,
             gasCost: 0, // Yellow state channels = 0 gas

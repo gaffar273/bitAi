@@ -146,12 +146,13 @@ export interface Dispute {
     resolvedAt?: Date;
 }
 
-// Price floors per service type (in USDC)
+// Price floors per service type (in USD)
 export const PRICE_FLOORS: Record<string, number> = {
     translation: 0.01,
     summarizer: 0.01,
     scraper: 0.005,
     image_gen: 0.03,
+    pdf_loader: 0.005,
 };
 
 // Complexity scores per service type (base values)

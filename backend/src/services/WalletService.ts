@@ -115,13 +115,31 @@ export class WalletService {
     static async getUserChannels(userAddress: string) {
         const sessions = await YellowService.getUserSessions(userAddress);
 
-        return sessions.map(session => ({
-            sessionId: session.sessionId,
-            channelId: session.channelId,
-            userAddress: session.userAddress,
-            partnerAddress: session.partnerAddress,
-            status: session.status,
-        }));
+        const channelsWithBalance = await Promise.all(
+            sessions.map(async (session) => {
+                const channel = await YellowService.getChannel(session.channelId);
+
+                // Skip sessions where channel no longer exists (e.g., after server restart)
+                if (!channel) {
+                    return null;
+                }
+
+                const isAgentA = channel.agentA?.toLowerCase() === userAddress.toLowerCase();
+                const balance = isAgentA ? channel.balanceA : channel.balanceB;
+
+                return {
+                    sessionId: session.sessionId,
+                    channelId: session.channelId,
+                    userAddress: session.userAddress,
+                    partnerAddress: session.partnerAddress,
+                    status: channel.status || session.status,
+                    balance,
+                };
+            })
+        );
+
+        // Filter out null entries (stale sessions)
+        return channelsWithBalance.filter((ch) => ch !== null);
     }
 
     // Fund a Yellow channel from user wallet
@@ -138,8 +156,20 @@ export class WalletService {
     }> {
         try {
             // Convert ETH amount to wei (18 decimals)
+            // Convert ETH amount to wei (18 decimals)
+            // Sanity check: if amount is > 100,000,000, assume the user might have passed Wei already or it's invalid.
+            // Total ETH supply is ~120M.
+
             const amountFloat = parseFloat(amount);
-            const weiAmount = Math.floor(amountFloat * 1e18).toString();
+            let weiAmount: string;
+
+            if (amountFloat > 100_000_000) {
+                // Assume input is already in Wei if it's unreasonably large for ETH
+                console.warn(`[Wallet] Warning: Amount ${amount} seems too large for ETH. Treating as Wei.`);
+                weiAmount = BigInt(Math.floor(amountFloat)).toString();
+            } else {
+                weiAmount = BigInt(Math.floor(amountFloat * 1e18)).toString();
+            }
 
             console.log(`[Wallet] Creating Yellow channel: ${userAddress} -> ${partnerAddress}, amount: ${weiAmount} wei`);
 

@@ -23,6 +23,7 @@ import type {
   TransferRequest,
   TransferResponse,
   SettleChannelRequest,
+  Transaction,
   SettleChannelResponse,
   // Analytics
   GetSavingsResponse,
@@ -41,6 +42,8 @@ import type {
   OnChainSettleResponse,
   WalletDepositsResponse,
   WalletInfoResponse,
+  SpendingSummary,
+  ClientSettleResponse,
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
@@ -152,11 +155,33 @@ export const api = {
     axios.post(`${API_BASE}/api/payments/transfer`, data),
 
   /**
-   * Settle the channel on-chain (batch all transactions)
+   * Settle the channel via Yellow ClearNode (off-chain batch)
    * POST /api/payments/settle
    */
-  settleChannel: (data: SettleChannelRequest): Promise<AxiosResponse<SettleChannelResponse>> =>
+  /**
+   * Settle the channel (requests settlement data from backend for client signing)
+   * POST /api/payments/settle
+   */
+  settleChannel: (data: SettleChannelRequest): Promise<AxiosResponse<SettleChannelResponse | ClientSettleResponse>> =>
     axios.post(`${API_BASE}/api/payments/settle`, data),
+
+  /**
+   * Settle on-chain via backend (or request data)
+   * POST /api/payments/settle/onchain
+   */
+  settleChannelOnChain: (data: SettleChannelRequest): Promise<AxiosResponse<OnChainSettleResponse | ClientSettleResponse>> =>
+    axios.post(`${API_BASE}/api/payments/settle/onchain`, data),
+
+
+
+  /**
+   * Get transactions for a specific channel
+   * GET /api/payments/channel/:channelId/transactions
+   */
+  getChannelTransactions: (channelId: string, limit = 50, offset = 0): Promise<AxiosResponse<{ success: boolean; data: { channelId: string; transactions: Transaction[]; count: number } }>> =>
+    axios.get(`${API_BASE}/api/payments/channel/${channelId}/transactions`, {
+      params: { limit, offset },
+    }),
 
   // ============================================
   // Analytics
@@ -247,6 +272,31 @@ export const api = {
     axios.post(`${API_BASE}/api/wallet/${address}/settle/onchain`, data),
 
   /**
+   * Get settlement data for client-side signing
+   * GET /api/wallet/:address/settle-data
+   */
+  getSettlementData: (
+    address: string,
+    channelId: string
+  ): Promise<AxiosResponse<{ success: boolean; data: unknown }>> =>
+    axios.get(`${API_BASE}/api/wallet/${address}/settle-data`, { params: { channel_id: channelId } }),
+
+  /**
+   * Callback after client-side settlement
+   * POST /api/wallet/:address/settle-callback
+   */
+  settleCallback: (
+    address: string,
+    channelId: string,
+    txHash: string,
+    openTxHash: string,
+    settleTxHash?: string,
+    createdAt?: string,
+    updatedAt?: string,
+  ): Promise<AxiosResponse<{ success: boolean }>> =>
+    axios.post(`${API_BASE}/api/wallet/${address}/settle-callback`, { channel_id: channelId, tx_hash: txHash, open_tx_hash: openTxHash, settle_tx_hash: settleTxHash, created_at: createdAt, updated_at: updatedAt }),
+
+  /**
    * Get deposit history for a wallet
    * GET /api/wallet/:address/deposits
    */
@@ -259,6 +309,13 @@ export const api = {
    */
   getWalletInfo: (address: string): Promise<AxiosResponse<WalletInfoResponse>> =>
     axios.get(`${API_BASE}/api/wallet/${address}`),
+
+  /**
+   * Get spending summary for a wallet
+   * GET /api/wallet/:address/spending
+   */
+  getSpendingSummary: (address: string): Promise<AxiosResponse<{ success: boolean; data: SpendingSummary }>> =>
+    axios.get(`${API_BASE}/api/wallet/${address}/spending`),
 };
 
 // ============================================

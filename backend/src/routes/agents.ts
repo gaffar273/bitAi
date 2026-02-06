@@ -49,6 +49,23 @@ router.post('/register', async (req: Request, res: Response) => {
     }
 });
 
+// Clear all agents (for development/testing)
+router.delete('/clear', async (_req: Request, res: Response) => {
+    try {
+        const deleted = await AgentService.clearAll();
+        res.json({
+            success: true,
+            data: { deleted },
+        } as ApiResponse<{ deleted: number }>);
+    } catch (error) {
+        console.error('Error clearing agents:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to clear agents',
+        } as ApiResponse<null>);
+    }
+});
+
 // Execute a service on an agent
 router.post('/:wallet/execute', async (req: Request, res: Response) => {
     try {

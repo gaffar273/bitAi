@@ -6,7 +6,6 @@ Make sure your `.env` has:
 ```env
 BASE_SEPOLIA_RPC=https://sepolia.base.org
 BASE_SEPOLIA_CHAIN_ID=84532
-USDC_CONTRACT_ADDRESS=0x036CbD53842c5426634e7929541eC2318f3dCF7e
 PRIVATE_KEY=your_private_key_here
 ```
 
@@ -14,7 +13,7 @@ PRIVATE_KEY=your_private_key_here
 
 ### 1. Check Balance
 
-Test getting ETH and USDC balances on Base Sepolia:
+Test getting ETH balance on Base Sepolia:
 
 ```bash
 curl http://localhost:5000/api/wallet/0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb/balance
@@ -27,8 +26,7 @@ curl http://localhost:5000/api/wallet/0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb/
   "data": {
     "address": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
     "eth": "0.05",
-    "usdc": "100.00",
-    "usdcRaw": "100000000"
+    "ethWei": "50000000000000000"
   }
 }
 ```
@@ -59,7 +57,7 @@ curl -X POST http://localhost:5000/api/wallet/connect \
     "verified": true,
     "balances": {
       "eth": "0.05",
-      "usdc": "100.00"
+      "ethWei": "50000000000000000"
     }
   }
 }
@@ -153,16 +151,17 @@ curl http://localhost:5000/api/wallet/0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb/
 
 ### 5. Record Deposit
 
-Track a USDC deposit transaction:
+Track an ETH deposit transaction:
 
 ```bash
 curl -X POST http://localhost:5000/api/wallet/0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb/deposit \
   -H "Content-Type: application/json" \
   -d '{
-    "amount": "50.00",
+    "amount": "0.05",
     "txHash": "0xdeadbeef1234567890abcdef1234567890abcdef1234567890abcdef12345678",
-    "token": "USDC"
+    "token": "ETH"
   }'
+```
 ```
 
 **Expected Response:**
@@ -196,7 +195,7 @@ curl http://localhost:5000/api/wallet/0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb/
 1. **User connects wallet** via MetaMask
 2. **Backend verifies** signature (`/api/wallet/connect`)
 3. **Frontend displays** balances (`/api/wallet/:address/balance`)
-4. **User funds channel** with USDC (`/api/wallet/:address/fund-channel`)
+4. **User funds channel** with ETH (`/api/wallet/:address/fund-channel`)
 5. **User can now orchestrate** AI agent workflows with their wallet
 6. **Payments flow** through Yellow Network (0 gas)
 7. **Settle to Base Sepolia** when session ends
@@ -229,10 +228,11 @@ The system will:
 
 ## Testing Checklist
 
-- [ ] `/api/wallet/:address/balance` returns correct ETH and USDC values
+- [ ] `/api/wallet/:address/balance` returns correct ETH values
 - [ ] `/api/wallet/connect` verifies signatures correctly
 - [ ] `/api/wallet/:address/fund-channel` creates Yellow sessions
 - [ ] `/api/wallet/:address/channels` shows active channels
+- [ ] `/api/wallet/:address/spending` returns spending summary
 - [ ] Funded wallet can execute workflows
 - [ ] Backend server restarts without losing channel state (will be fixed with DB persistence)
 
@@ -295,8 +295,8 @@ async function fundChannel(amount: string) {
 
 ## Production Considerations
 
-1. **USDC Approval**: Users need to approve USDC spending before deposits
-2. **Gas Estimation**: Show gas cost estimates for transactions
-3. **Transaction Confirmation**: Wait for block confirmations before marking deposits as confirmed
-4. **Error Handling**: Handle wallet connection errors, rejected signatures, insufficient balance
-5. **Session Persistence**: Store channel data in database for recovery after server restarts
+1. **Gas Estimation**: Show gas cost estimates for settlement transactions
+2. **Transaction Confirmation**: Wait for block confirmations before marking deposits as confirmed
+3. **Error Handling**: Handle wallet connection errors, rejected signatures, insufficient balance
+4. **Session Persistence**: Store channel data in database for recovery after server restarts
+5. **Settlement Flow**: Use `/api/wallet/:address/settle-data` to get data for MetaMask signing

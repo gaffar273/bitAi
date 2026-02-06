@@ -40,10 +40,10 @@ export function TransactionItem({ tx }: Props) {
 
       <div className="text-right">
         <p className="text-lg font-bold text-blue-400">
-          {(tx.amount / 1e18).toFixed(4)} ETH
+          {((tx.amount ?? 0) / 1e18).toFixed(4)} ETH
         </p>
         <p className="text-xs text-gray-500">
-          Gas: {tx.gasCost.toFixed(4)}
+          Gas: {(tx.gasCost ?? 0).toFixed(4)}
         </p>
       </div>
     </motion.div>

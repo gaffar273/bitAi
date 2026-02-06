@@ -1,27 +1,53 @@
 import { useState } from 'react';
-import { Bot, Activity, TrendingDown, Workflow, Wallet } from 'lucide-react';
+import { Bot, Activity, TrendingDown, Workflow, Wallet, CreditCard } from 'lucide-react';
 import { AgentList } from './components/AgentList';
 import { TransactionFeed } from './components/TransactionFeed';
 import { GasSavings } from './components/GasSavings';
 import { WorkflowBuilder } from './components/WorkflowBuilder';
 import { WalletConnect } from './components/WalletConnect';
+import { PaymentDashboard } from './components/PaymentDashboard';
 import { useWallet } from './hooks/use-wallet';
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
 
-type Tab = 'agents' | 'transactions' | 'savings' | 'workflow';
+type Tab = 'agents' | 'transactions' | 'savings' | 'workflow' | 'payments';
+
+const TAB_STORAGE_KEY = 'roguecapital_active_tab';
+
+function getInitialTab(): Tab {
+  try {
+    const saved = localStorage.getItem(TAB_STORAGE_KEY);
+    if (saved && ['agents', 'transactions', 'savings', 'workflow', 'payments'].includes(saved)) {
+      return saved as Tab;
+    }
+  } catch {
+    // ignore
+  }
+  return 'agents';
+}
 
 function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('agents');
+  const [activeTab, setActiveTab] = useState<Tab>(getInitialTab);
+  const [walletDialogOpen, setWalletDialogOpen] = useState(false);
   // Initialize wallet hook
   const { wallet, connectWallet, disconnectWallet, refreshBalance } = useWallet();
 
+  const handleTabChange = (tab: Tab) => {
+    setActiveTab(tab);
+    try {
+      localStorage.setItem(TAB_STORAGE_KEY, tab);
+    } catch {
+      // ignore
+    }
+  };
+
   const tabs = [
     { id: 'agents' as Tab, icon: Bot, label: 'Agents' },
+    { id: 'workflow' as Tab, icon: Workflow, label: 'Workflow' },
+    { id: 'payments' as Tab, icon: CreditCard, label: 'Payments' },
     { id: 'transactions' as Tab, icon: Activity, label: 'Live Feed' },
     { id: 'savings' as Tab, icon: TrendingDown, label: 'Gas Savings' },
-    { id: 'workflow' as Tab, icon: Workflow, label: 'Workflow' },
   ];
 
   const formatAddress = (address: string) => {
@@ -45,7 +71,7 @@ function App() {
 
             {/* Wallet Integration */}
             <div className="flex items-center gap-4">
-              <Dialog>
+              <Dialog open={walletDialogOpen} onOpenChange={setWalletDialogOpen}>
                 <DialogTrigger asChild>
                   <Button
                     variant={wallet.address ? "outline" : "default"}
@@ -94,7 +120,7 @@ function App() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => handleTabChange(tab.id)}
                   className={`
                     relative px-4 py-3 flex items-center gap-2 font-medium text-sm
                     transition-all duration-200
@@ -122,7 +148,13 @@ function App() {
         {activeTab === 'agents' && <AgentList />}
         {activeTab === 'transactions' && <TransactionFeed />}
         {activeTab === 'savings' && <GasSavings />}
-        {activeTab === 'workflow' && <WorkflowBuilder />}
+        {activeTab === 'workflow' && (
+          <WorkflowBuilder
+            wallet={wallet}
+            onConnectWallet={() => setWalletDialogOpen(true)}
+          />
+        )}
+        {activeTab === 'payments' && <PaymentDashboard wallet={wallet} />}
       </main>
     </div>
   );

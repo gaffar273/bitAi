@@ -1,7 +1,12 @@
 import { AgentService } from './AgentService';
 import { PaymentService, RevenueShareService } from './PaymentService';
 import { TransactionLogger } from './TransactionLogger';
+import { YellowService } from './YellowService';
 import { ContributionMetrics } from '../types';
+
+// Agent pool address for payment routing
+const AGENT_POOL_ADDRESS = '0x0000000000000000000000000000000000000001';
+
 
 // Workflow step definition
 export interface WorkflowStep {
@@ -16,6 +21,7 @@ export interface WorkflowResult {
     steps: StepResult[];
     totalCost: number;
     totalDuration: number;
+    channelId?: string;
     revenueDistribution?: {
         participants: { wallet: string; share: number; payment: number }[];
     };
@@ -41,22 +47,48 @@ export class OrchestratorService {
      * @param orchestratorWallet - Wallet of the orchestrator (pays for all steps)
      * @param workflowSteps - Array of steps to execute
      * @param channelId - Optional: Pre-opened payment channel
+     * @param budget - Optional: Budget for the workflow in wei (default: 0.01 ETH)
      */
     static async executeWorkflow(
         orchestratorWallet: string,
         workflowSteps: WorkflowStep[],
-        channelId?: string
+        channelId?: string,
+        budget: string = '10000000000000000' // 0.01 ETH default
     ): Promise<WorkflowResult> {
         const results: StepResult[] = [];
         let totalCost = 0;
         let totalDuration = 0;
         const startTime = Date.now();
+        let activeChannelId = channelId;
 
         console.log(`\n[Orchestrator] Starting workflow with ${workflowSteps.length} steps...`);
         console.log(`[Orchestrator] Payer: ${orchestratorWallet.slice(0, 10)}...`);
 
         try {
+            // Verify channel exists if provided, or create new one
+            if (activeChannelId) {
+                const existingChannel = await YellowService.getChannel(activeChannelId);
+                if (!existingChannel) {
+                    console.log(`[Orchestrator] Provided channel ${activeChannelId} not found, creating new one`);
+                    activeChannelId = undefined; // Will create new channel below
+                }
+            }
+
+            // Create payment channel if not provided or not found
+            if (!activeChannelId) {
+                console.log(`[Orchestrator] Creating payment channel with budget: ${budget} wei`);
+                const session = await YellowService.createSession(
+                    orchestratorWallet,
+                    AGENT_POOL_ADDRESS,
+                    budget,
+                    '0'
+                );
+                activeChannelId = session.channelId;
+                console.log(`[Orchestrator] Channel created: ${activeChannelId}`);
+            }
+
             let previousOutput: unknown = null;
+
 
             for (let i = 0; i < workflowSteps.length; i++) {
                 const step = workflowSteps[i];
@@ -99,18 +131,28 @@ export class OrchestratorService {
                     stepInput
                 );
 
-                // 4. Process payment
+                // 4. Process payment - Route to AGENT_POOL (channel's agentB), track actual agent for logging
                 let paymentTxId: string | undefined;
                 if (execution.cost > 0) {
-                    // For demo: simulate instant Yellow payment
+                    // execution.cost is in USD (like $0.05)
+                    // Convert USD to ETH: $0.05 / $3000 per ETH = 0.0000167 ETH
+                    // Then convert to wei: * 1e18
+                    const ETH_PRICE_USD = 3000; // TODO: fetch real price from oracle
+                    const costInEth = execution.cost / ETH_PRICE_USD;
+                    const costInWei = Math.floor(costInEth * 1e18);
+
+                    // Route payment through Yellow state channel to AGENT_POOL_ADDRESS
+                    // The actual agent wallet is tracked separately for logging purposes
                     const payment = await PaymentService.transfer(
-                        channelId || 'default-channel',
+                        activeChannelId || 'default-channel',
                         orchestratorWallet,
-                        selectedAgent.wallet,
-                        execution.cost
+                        AGENT_POOL_ADDRESS,   // Payment goes to pool (channel's agentB)
+                        costInWei,            // Now in wei
+                        undefined,
+                        selectedAgent.wallet  // Track actual agent for logging
                     );
                     paymentTxId = payment.transaction.id;
-                    console.log(`[Orchestrator] Payment: $${execution.cost} → ${selectedAgent.wallet.slice(0, 10)}... (gas: $0)`);
+                    console.log(`[Orchestrator] Payment: $${execution.cost} USD = ${costInEth.toFixed(8)} ETH (${costInWei} wei) -> ${selectedAgent.wallet.slice(0, 10)}...`);
                 }
 
                 // 5. Update reputation (success)
@@ -194,6 +236,7 @@ export class OrchestratorService {
                 steps: results,
                 totalCost,
                 totalDuration: workflowDuration,
+                channelId: activeChannelId,
                 revenueDistribution: {
                     participants: distribution.participants.map(p => ({
                         wallet: p.agentWallet,

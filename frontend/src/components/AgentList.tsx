@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
-import { Search, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Search } from 'lucide-react';
 import { api } from '../services/api';
 import type { Agent, ServiceType } from '../types';
 import { AgentCard } from './AgentCard';
@@ -11,21 +11,31 @@ export function AgentList() {
   const [filter, setFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
-  const loadAgents = useCallback(async () => {
-    setLoading(true);
-    try {
-      const serviceFilter = filter === 'all' ? undefined : filter as ServiceType;
-      const response = await api.getAgents(serviceFilter);
-      setAgents(response.data.data);
-    } catch (error) {
-      console.error('Failed to load agents:', error);
-    }
-    setLoading(false);
-  }, [filter]);
-
   useEffect(() => {
+    let isMounted = true;
+
+    const loadAgents = async () => {
+      setLoading(true);
+      try {
+        const serviceFilter = filter === 'all' ? undefined : filter as ServiceType;
+        const response = await api.getAgents(serviceFilter);
+        if (isMounted) {
+          setAgents(response.data.data);
+        }
+      } catch (error) {
+        console.error('Failed to load agents:', error);
+      }
+      if (isMounted) {
+        setLoading(false);
+      }
+    };
+
     loadAgents();
-  }, [loadAgents]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [filter]);
 
   const serviceTypes = ['all', 'translation', 'image_gen', 'scraper', 'summarizer'];
 

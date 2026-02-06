@@ -39,30 +39,42 @@ export class TransactionLogger {
             return txId;
         }
 
-        try {
-            const sql = getSQL();
-            if (!sql) {
-                console.log('[TxLogger] Database not configured');
-                return txId;
-            }
+        // Simple retry logic
+        let retries = 3;
+        while (retries > 0) {
+            try {
+                const sql = getSQL();
+                if (!sql) {
+                    console.log('[TxLogger] Database not configured');
+                    return txId;
+                }
 
-            await sql`
-                INSERT INTO transactions 
-                (id, from_wallet, to_wallet, amount, service_type, channel_id, gas_cost, status) 
-                VALUES (
-                    ${txId}, 
-                    ${tx.fromWallet}, 
-                    ${tx.toWallet}, 
-                    ${tx.amount}, 
-                    ${tx.serviceType || null}, 
-                    ${tx.channelId || null}, 
-                    ${tx.gasCost}, 
-                    ${tx.status}
-                )
-            `;
-        } catch (error) {
-            console.error('[TxLogger] Database error:', error);
-            // Continue even if DB write fails
+                await sql`
+                    INSERT INTO transactions 
+                    (id, from_wallet, to_wallet, amount, service_type, channel_id, gas_cost, status) 
+                    VALUES (
+                        ${txId}, 
+                        ${tx.fromWallet}, 
+                        ${tx.toWallet}, 
+                        ${tx.amount}, 
+                        ${tx.serviceType || null}, 
+                        ${tx.channelId || null}, 
+                        ${tx.gasCost}, 
+                        ${tx.status}
+                    )
+                `;
+                return txId; // Success
+            } catch (error) {
+                retries--;
+                if (retries === 0) {
+                    const msg = error instanceof Error ? error.message : String(error);
+                    console.warn(`[TxLogger] Failed to log transaction after retries: ${msg}`);
+                    // Don't log full stack trace to avoid noise
+                } else {
+                    // Wait briefly before retry
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            }
         }
 
         return txId;
@@ -87,47 +99,56 @@ export class TransactionLogger {
             return workflowId;
         }
 
-        try {
-            const sql = getSQL();
-            if (!sql) {
-                console.log('[TxLogger] Database not configured');
-                return workflowId;
-            }
+        let retries = 3;
+        while (retries > 0) {
+            try {
+                const sql = getSQL();
+                if (!sql) {
+                    console.log('[TxLogger] Database not configured');
+                    return workflowId;
+                }
 
-            // Insert workflow
-            await sql`
-                INSERT INTO workflows 
-                (id, orchestrator_wallet, total_steps, total_cost, total_duration, status, error) 
-                VALUES (
-                    ${workflowId}, 
-                    ${workflow.orchestratorWallet}, 
-                    ${workflow.totalSteps}, 
-                    ${workflow.totalCost}, 
-                    ${workflow.totalDuration}, 
-                    ${workflow.status}, 
-                    ${workflow.error || null}
-                )
-            `;
-
-            // Insert workflow steps
-            for (const step of steps) {
+                // Insert workflow
                 await sql`
-                    INSERT INTO workflow_steps 
-                    (workflow_id, step_number, service_type, agent_wallet, cost, duration, payment_tx_id) 
+                    INSERT INTO workflows 
+                    (id, orchestrator_wallet, total_steps, total_cost, total_duration, status, error) 
                     VALUES (
                         ${workflowId}, 
-                        ${step.stepNumber}, 
-                        ${step.serviceType}, 
-                        ${step.agentWallet}, 
-                        ${step.cost}, 
-                        ${step.duration}, 
-                        ${step.paymentTxId || null}
+                        ${workflow.orchestratorWallet}, 
+                        ${workflow.totalSteps}, 
+                        ${workflow.totalCost}, 
+                        ${workflow.totalDuration}, 
+                        ${workflow.status}, 
+                        ${workflow.error || null}
                     )
                 `;
-            }
 
-        } catch (error) {
-            console.error('[TxLogger] Database error:', error);
+                // Insert workflow steps
+                for (const step of steps) {
+                    await sql`
+                        INSERT INTO workflow_steps 
+                        (workflow_id, step_number, service_type, agent_wallet, cost, duration, payment_tx_id) 
+                        VALUES (
+                            ${workflowId}, 
+                            ${step.stepNumber}, 
+                            ${step.serviceType}, 
+                            ${step.agentWallet}, 
+                            ${step.cost}, 
+                            ${step.duration}, 
+                            ${step.paymentTxId || null}
+                        )
+                    `;
+                }
+                return workflowId; // Success
+            } catch (error) {
+                retries--;
+                if (retries === 0) {
+                    const msg = error instanceof Error ? error.message : String(error);
+                    console.warn(`[TxLogger] Failed to log workflow after retries: ${msg}`);
+                } else {
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            }
         }
 
         return workflowId;

@@ -117,7 +117,7 @@ router.get('/channel/:channelId', async (req: Request, res: Response) => {
     }
 });
 
-// Settle a channel (on-chain via Yellow ClearNode)
+// Settle a channel (return off-chain batch instructions or initiate settlement)
 router.post('/settle', async (req: Request, res: Response) => {
     try {
         const { channel_id, private_key } = req.body;
@@ -132,25 +132,42 @@ router.post('/settle', async (req: Request, res: Response) => {
 
         console.log(`[Payments] Settlement requested for channel: ${channel_id}`);
 
-        const result = await YellowService.settle(channel_id, private_key);
+        // If private_key is provided, we can still do server-side signing (legacy/testing support)
+        if (private_key) {
+            const result = await YellowService.settle(channel_id, private_key);
+            res.json({
+                success: true,
+                data: {
+                    tx_hash: result.settleTxHash,
+                    channel_id: result.channelId,
+                    status: result.status,
+                    final_balances: {
+                        [result.agentA]: result.balanceA,
+                        [result.agentB]: result.balanceB,
+                    },
+                    settlement_result: result.settlementResult,
+                    gas_cost_usd: 0.01,
+                    message: 'Channel settled via Yellow ClearNode (Server-Signed)',
+                },
+            });
+            return;
+        }
+
+        // Otherwise, assume we want fallback on-chain settlement data for Client Signing
+        // Note: For real Yellow Network integration, this would return an unsigned CloseChannel message.
+        // For this demo (Base Sepolia fallback), we return the on-chain tx data.
+
+        const txData = await YellowService.generateSettlementTxData(channel_id);
 
         res.json({
             success: true,
             data: {
-                tx_hash: result.settleTxHash,
-                channel_id: result.channelId,
-                status: result.status,
-                final_balances: {
-                    [result.agentA]: result.balanceA,
-                    [result.agentB]: result.balanceB,
-                },
-                settlement_result: result.settlementResult,
-                gas_cost_usd: 0.01, // Base L2 settlement cost
-                message: 'Channel settled successfully via Yellow ClearNode',
+                requires_signing: true,
+                tx_data: txData,
+                message: 'Please sign the settlement transaction with your wallet',
             },
         });
 
-        console.log(`[Payments] Channel ${channel_id} settled successfully`);
     } catch (error: unknown) {
         console.error('Error settling channel:', error);
         const errorMessage = error instanceof Error ? error.message : 'Failed to settle channel';
@@ -174,30 +191,44 @@ router.post('/settle/onchain', async (req: Request, res: Response) => {
             return;
         }
 
-        console.log(`[Payments] On-chain settlement requested for channel: ${channel_id}`);
-
-        const result = await YellowService.settleOnChain(channel_id, private_key);
-
-        if (result.success) {
-            res.json({
-                success: true,
-                data: {
-                    tx_hash: result.txHash,
-                    block_number: result.blockNumber,
-                    gas_used: result.gasUsed,
-                    explorer_url: result.explorerUrl,
-                    chain: 'Base Sepolia',
-                    chain_id: 84532,
-                    message: 'Settlement confirmed on Base Sepolia testnet!',
-                },
-            });
-            console.log(`[Payments] On-chain settlement successful: ${result.txHash}`);
-        } else {
-            res.status(400).json({
-                success: false,
-                error: result.error || 'On-chain settlement failed',
-            } as ApiResponse<null>);
+        // Legacy: Server-side signing if private key provided
+        if (private_key) {
+            const result = await YellowService.settleOnChain(channel_id, private_key);
+            if (result.success) {
+                res.json({
+                    success: true,
+                    data: {
+                        tx_hash: result.txHash,
+                        block_number: result.blockNumber,
+                        gas_used: result.gasUsed,
+                        explorer_url: result.explorerUrl,
+                        chain: 'Base Sepolia',
+                        chain_id: 84532,
+                        message: 'Settlement confirmed on Base Sepolia testnet!',
+                    },
+                });
+            } else {
+                res.status(400).json({
+                    success: false,
+                    error: result.error || 'On-chain settlement failed',
+                } as ApiResponse<null>);
+            }
+            return;
         }
+
+        // New Flow: Return unsigned data for client
+        const txData = await YellowService.generateSettlementTxData(channel_id);
+
+        res.json({
+            success: true,
+            data: {
+                requires_signing: true,
+                tx_data: txData,
+                channel_id,
+                message: 'Please sign the on-chain settlement transaction',
+            }
+        });
+
     } catch (error: unknown) {
         console.error('Error with on-chain settlement:', error);
         const errorMessage = error instanceof Error ? error.message : 'Failed to settle on-chain';
@@ -208,4 +239,53 @@ router.post('/settle/onchain', async (req: Request, res: Response) => {
     }
 });
 
+// Get transaction history for a channel
+router.get('/channel/:channelId/transactions', async (req: Request, res: Response) => {
+    try {
+        const channelId = req.params.channelId as string;
+        const limit = parseInt(req.query.limit as string) || 50;
+        const offset = parseInt(req.query.offset as string) || 0;
+
+        const transactions = await YellowService.getTransactions(channelId, limit, offset);
+
+        res.json({
+            success: true,
+            data: {
+                channelId,
+                transactions,
+                count: transactions.length,
+            },
+        });
+    } catch (error) {
+        console.error('Error fetching channel transactions:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch channel transactions',
+        } as ApiResponse<null>);
+    }
+});
+
+// Get all channels (for debugging/admin)
+router.get('/channels', async (_req: Request, res: Response) => {
+    try {
+        // Get savings metrics which includes channel count
+        const metrics = await YellowService.getSavingsMetrics();
+
+        res.json({
+            success: true,
+            data: {
+                totalTransactions: metrics.totalTransactions,
+                savingsPercent: metrics.savingsPercent,
+            },
+        });
+    } catch (error) {
+        console.error('Error fetching channels:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch channels',
+        } as ApiResponse<null>);
+    }
+});
+
 export default router;
+
