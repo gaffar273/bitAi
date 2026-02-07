@@ -193,7 +193,6 @@ function App() {
             {activeTab === 'workflow' && (
               <WorkflowBuilder
                 wallet={wallet}
-                onConnectWallet={() => setWalletDialogOpen(true)}
               />
             )}
             {activeTab === 'payments' && <PaymentDashboard wallet={wallet} />}

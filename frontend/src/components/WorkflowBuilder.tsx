@@ -22,7 +22,7 @@ interface WorkflowBuilderProps {
   onConnectWallet: () => void;
 }
 
-export function WorkflowBuilder({ wallet, onConnectWallet }: WorkflowBuilderProps) {
+export function WorkflowBuilder({ wallet }: Omit<WorkflowBuilderProps, 'onConnectWallet'>) {
   const [steps, setSteps] = useState<{ serviceType: ServiceType }[]>([]);
   const [inputText, setInputText] = useState('');
   const [executing, setExecuting] = useState(false);
@@ -69,8 +69,24 @@ export function WorkflowBuilder({ wallet, onConnectWallet }: WorkflowBuilderProp
       return;
     }
 
-    if (!wallet.address) {
-      onConnectWallet();
+    // Check for wallet connection
+    const userWallet = localStorage.getItem('roguecapital_wallet_address');
+    if (!userWallet) {
+      setError('Please connect your wallet first! Click the wallet icon in the header.');
+      return;
+    }
+
+    // Check for open payment channel
+    try {
+      const channelsRes = await api.getWalletChannels(userWallet);
+      const channels = channelsRes.data?.data?.channels || [];
+      const openChannel = channels.find((ch: { status: string }) => ch.status === 'open');
+      if (!openChannel) {
+        setError('No open payment channel! Please open a channel in the Wallet section before running workflows.');
+        return;
+      }
+    } catch {
+      setError('Could not verify payment channel. Please open a channel in the Wallet section.');
       return;
     }
 
@@ -93,7 +109,7 @@ export function WorkflowBuilder({ wallet, onConnectWallet }: WorkflowBuilderProp
       const response = await api.executeWorkflow({
         orchestratorWallet: agents[0].wallet,
         steps: workflowSteps,
-        userWallet: wallet.address,
+        userWallet: wallet.address || undefined,
         channelId: channelId
       });
 
