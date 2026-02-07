@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { IoCheckmarkCircle, IoFolderOpen, IoTime } from 'react-icons/io5';
 import { Workflow, X, Play, Loader2, Sparkles, CheckCircle2, AlertTriangle, Search, FileText, Globe, Palette, FileUp } from 'lucide-react';
 import type { WorkflowStep, WorkflowResult, Agent } from '../types';
 import { api } from '../services/api';
@@ -8,9 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
 const SERVICE_CONFIGS = {
-  scraper: { icon: Search, name: 'Web Scraper', gradient: 'from-blue-500 to-cyan-500', price: 0.01, placeholder: 'Enter URL to scrape...' },
-  summarizer: { icon: FileText, name: 'Summarizer', gradient: 'from-yellow-500 to-amber-500', price: 0.02, placeholder: 'Enter text to summarize...' },
-  translation: { icon: Globe, name: 'Translator', gradient: 'from-emerald-500 to-teal-500', price: 0.02, placeholder: 'Enter text to translate...' },
+  scraper: { icon: Search, name: 'Web Scraper', gradient: 'from-blue-500 to-cyan-500', price: 0.02, placeholder: 'Enter URL to scrape...' },
+  summarizer: { icon: FileText, name: 'Summarizer', gradient: 'from-yellow-500 to-amber-500', price: 0.03, placeholder: 'Enter text to summarize...' },
+  translation: { icon: Globe, name: 'Translator', gradient: 'from-emerald-500 to-teal-500', price: 0.05, placeholder: 'Enter text to translate...' },
   image_gen: { icon: Palette, name: 'Image Generator', gradient: 'from-pink-500 to-rose-500', price: 0.05, placeholder: 'Describe the image...' },
   pdf_loader: { icon: FileUp, name: 'PDF Loader', gradient: 'from-amber-500 to-orange-500', price: 0.01, placeholder: 'PDF files will be auto-loaded...' },
 };
@@ -394,7 +395,7 @@ export function WorkflowBuilder({ wallet }: Omit<WorkflowBuilderProps, 'onConnec
                   : 'border-yellow-500/30'
                 }`}>
                 <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
-                  {result.settlement.autoSettled ? '✅' : result.settlement.status === 'open' ? '📂' : '⏳'}
+                  {result.settlement.autoSettled ? <IoCheckmarkCircle className="w-5 h-5 text-emerald-400" /> : result.settlement.status === 'open' ? <IoFolderOpen className="w-5 h-5 text-blue-400" /> : <IoTime className="w-5 h-5 text-yellow-400" />}
                   Payment Channel
                 </h3>
                 <div className="text-sm space-y-2">

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { IoCloseCircle } from 'react-icons/io5';
 import { Globe, Palette, Search, FileText, Bot, Circle, Play, Loader2, CheckCircle2, AlertCircle, Beaker, Terminal, LineChart, Shield, PenTool, Megaphone, TrendingUp, CheckCircle } from 'lucide-react';
 import type { Agent, ServiceType } from '../types';
 import { Badge } from '@/components/ui/badge';
@@ -264,7 +265,7 @@ export function AgentCard({ agent }: Props) {
       if (error) {
         return (
           <div className="space-y-2">
-            <div className="text-red-400 font-medium">❌ Scraping Failed</div>
+            <div className="text-red-400 font-medium flex items-center gap-2"><IoCloseCircle className="w-5 h-5" /> Scraping Failed</div>
             <div className="text-red-400/70 text-sm">{error}</div>
             {url && <div className="text-gray-500 text-xs mt-2">URL: {url}</div>}
           </div>
