@@ -362,7 +362,7 @@ export function WorkflowBuilder() {
                   Agent: {step.agentWallet.slice(0, 10)}...{step.agentWallet.slice(-8)}
                 </div>
                 {/* Show output preview */}
-                {step.output && (
+                {!!step.output && (
                   <div className="mt-2 p-3 bg-gray-900 rounded text-sm text-gray-300 max-h-48 overflow-y-auto">
                     {String(typeof step.output === 'string'
                       ? step.output
