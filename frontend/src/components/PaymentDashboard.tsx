@@ -4,8 +4,7 @@ import { Wallet, ArrowUpRight, Clock, CheckCircle, XCircle, FileText, Globe, Sea
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { api, fromWei } from '../services/api';
-import type { Transaction } from '../types';
-import type { WalletState } from '../hooks/use-wallet';
+import type { Transaction, WalletState } from '../types';
 
 interface Props {
   wallet: WalletState;
@@ -146,7 +145,7 @@ export function PaymentDashboard({ wallet }: Props) {
       >
         {[
           { label: 'ETH Balance', value: parseFloat(wallet.ethBalance).toFixed(4), color: 'from-blue-500 to-cyan-500' },
-          { label: 'Total Spent', value: `$${totalSpent.toFixed(4)}`, color: 'from-yellow-500 to-amber-500' },
+          { label: 'Total Spent', value: `$${totalSpent.toFixed(4)} `, color: 'from-yellow-500 to-amber-500' },
           { label: 'Successful Runs', value: successCount, color: 'from-emerald-500 to-teal-500' },
           { label: 'Active Channels', value: wallet.channels.length, color: 'from-orange-500 to-red-500' },
         ].map((stat, index) => (
@@ -157,7 +156,7 @@ export function PaymentDashboard({ wallet }: Props) {
             transition={{ delay: 0.1 + index * 0.05 }}
             className="glass rounded-2xl p-5 text-center hover-glow"
           >
-            <div className={`text-3xl font-bold bg-gradient-to-r ${stat.color} bg-clip-text text-transparent`}>
+            <div className={`text - 3xl font - bold bg - gradient - to - r ${stat.color} bg - clip - text text - transparent`}>
               {stat.value}
             </div>
             <div className="text-sm text-gray-400 mt-1 uppercase tracking-wider">{stat.label}</div>
@@ -177,12 +176,12 @@ export function PaymentDashboard({ wallet }: Props) {
             key={tab.id}
             onClick={() => setActiveView(tab.id)}
             className={`
-              relative px-5 py-2.5 rounded-xl transition-all duration-300
+              relative px - 5 py - 2.5 rounded - xl transition - all duration - 300
               ${activeView === tab.id
                 ? 'bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 text-black font-semibold'
                 : 'glass text-gray-400 hover:text-white hover:bg-white/5'
               }
-            `}
+`}
           >
             {tab.label}
           </Button>
@@ -240,7 +239,7 @@ export function PaymentDashboard({ wallet }: Props) {
                         onClick={() => setExpandedEntry(isExpanded ? null : entry.id)}
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+                          <div className={`w - 10 h - 10 rounded - lg bg - gradient - to - br ${gradient} flex items - center justify - center`}>
                             <Icon className="w-5 h-5 text-white" />
                           </div>
                           <div>
@@ -258,8 +257,8 @@ export function PaymentDashboard({ wallet }: Props) {
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className={`font-semibold ${entry.success ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {entry.success ? `$${entry.cost.toFixed(4)}` : 'Failed'}
+                          <div className={`font - semibold ${entry.success ? 'text-emerald-400' : 'text-red-400'} `}>
+                            {entry.success ? `$${entry.cost.toFixed(4)} ` : 'Failed'}
                           </div>
                           {entry.success && (
                             <div className="text-xs text-gray-500">{(entry.duration / 1000).toFixed(2)}s</div>
@@ -341,7 +340,7 @@ export function PaymentDashboard({ wallet }: Props) {
                       className="glass rounded-xl p-4 flex items-center justify-between hover:bg-white/5 transition-colors"
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+                        <div className={`w - 10 h - 10 rounded - lg bg - gradient - to - br ${gradient} flex items - center justify - center`}>
                           <Icon className="w-5 h-5 text-white" />
                         </div>
                         <div>

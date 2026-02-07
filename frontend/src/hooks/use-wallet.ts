@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { BrowserProvider, formatEther } from 'ethers';
 import { api } from '../services/api';
-import type { WalletChannel } from '../types';
+import type { WalletChannel, WalletState } from '../types';
 
 // Base Sepolia Testnet Configuration
 const BASE_SEPOLIA_CHAIN_ID = '0x14a34'; // 84532 in hex
@@ -18,16 +18,6 @@ const BASE_SEPOLIA_CONFIG = {
 };
 
 const WALLET_STORAGE_KEY = 'roguecapital_wallet_address';
-
-export interface WalletState {
-    address: string | null;
-    ethBalance: string;
-    channels: WalletChannel[];
-    isConnecting: boolean;
-    isRefreshing: boolean;
-    error: string | null;
-    network: string | null;
-}
 
 export function useWallet() {
     const [wallet, setWallet] = useState<WalletState>(() => {

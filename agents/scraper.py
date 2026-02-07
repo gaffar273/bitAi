@@ -19,7 +19,7 @@ class ScraperAgent:
         self.price = 0.02  # $0.02 per scrape - competitive marketplace price
         
         # Configuration
-        self.timeout = 10  # seconds
+        self.timeout = 30  # seconds
         self.max_content_length = 50000  # characters
         
     def execute(self, input_data: Dict[str, Any]) -> Dict[str, Any]:

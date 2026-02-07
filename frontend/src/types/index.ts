@@ -422,3 +422,13 @@ export interface ErrorResponse {
   success: false;
   error: string;
 }
+
+export interface WalletState {
+  address: string | null;
+  ethBalance: string;
+  channels: WalletChannel[];
+  isConnecting: boolean;
+  isRefreshing: boolean;
+  error: string | null;
+  network: string | null;
+}

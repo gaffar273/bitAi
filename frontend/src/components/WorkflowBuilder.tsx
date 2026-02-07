@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { IoCheckmarkCircle, IoFolderOpen, IoTime } from 'react-icons/io5';
 import { Workflow, X, Play, Loader2, Sparkles, CheckCircle2, AlertTriangle, Search, FileText, Globe, Palette, FileUp } from 'lucide-react';
 import type { WorkflowStep, WorkflowResult, Agent } from '../types';
+import type { WalletState } from '../types';
 import { api } from '../services/api';
-import type { WalletState } from '../hooks/use-wallet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 

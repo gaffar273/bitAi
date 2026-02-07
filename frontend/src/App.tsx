@@ -187,7 +187,7 @@ function App() {
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
           >
-            {activeTab === 'agents' && <AgentList />}
+            {activeTab === 'agents' && <AgentList wallet={wallet} />}
             {activeTab === 'transactions' && <TransactionFeed />}
 
             {activeTab === 'workflow' && (

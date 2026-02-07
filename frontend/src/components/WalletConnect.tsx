@@ -1,5 +1,5 @@
 import { Wallet, Copy, Check, RefreshCw, ExternalLink, AlertCircle, Loader2, Plus, ArrowUpRight } from 'lucide-react';
-import type { WalletState } from '../hooks/use-wallet';
+import type { WalletState } from '../types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';

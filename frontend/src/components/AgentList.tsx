@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Filter, Zap } from 'lucide-react';
 import { api } from '../services/api';
-import type { Agent } from '../types';
+import type { Agent, WalletState } from '../types';
 import { AgentCard } from './AgentCard';
 import { Input } from '@/components/ui/input';
 import {
@@ -13,7 +13,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-export function AgentList() {
+interface AgentListProps {
+  wallet?: WalletState;
+}
+
+export function AgentList({ wallet }: AgentListProps) {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [filter, setFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -185,7 +189,7 @@ export function AgentList() {
         >
           {filteredAgents.map((agent) => (
             <motion.div key={agent.wallet} variants={itemVariants}>
-              <AgentCard agent={agent} />
+              <AgentCard agent={agent} wallet={wallet} />
             </motion.div>
           ))}
         </motion.div>

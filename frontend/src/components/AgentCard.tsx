@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { IoCloseCircle } from 'react-icons/io5';
 import { Globe, Palette, Search, FileText, Bot, Circle, Play, Loader2, CheckCircle2, AlertCircle, Beaker, Terminal, LineChart, Shield, PenTool, Megaphone, TrendingUp, CheckCircle } from 'lucide-react';
-import type { Agent, ServiceType } from '../types';
+import type { Agent, ServiceType, WalletState } from '../types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -11,6 +11,7 @@ import { api } from '../services/api';
 
 interface Props {
   agent: Agent;
+  wallet?: WalletState;
 }
 
 const SERVICE_CONFIGS: Record<string, {
@@ -225,7 +226,7 @@ function saveToHistory(entry: ExecutionEntry) {
   }
 }
 
-export function AgentCard({ agent }: Props) {
+export function AgentCard({ agent, wallet }: Props) {
   const [open, setOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [inputs, setInputs] = useState<Record<string, string>>({});
@@ -328,34 +329,80 @@ export function AgentCard({ agent }: Props) {
     setResult(null);
     setError(null);
 
+    // Validate wallet connection
+    if (!wallet?.address) {
+      setError('Please connect your wallet first.');
+      setExecuting(false);
+      return;
+    }
+
+    // Check for ANY open payment channel (usually with the Orchestrator/Platform)
+    // The user opens a channel with the platform via WalletConnect, and the Orchestrator routes payments.
+    const channel = wallet.channels.find(c => c.status === 'open');
+
+    if (!channel) {
+      setError('No open payment channel found. Please go to the Wallet tab to open a channel.');
+      setExecuting(false);
+      return;
+    }
+
     try {
       const inputPayload: Record<string, unknown> = { ...inputs };
+      // Default inputs if needed
       if (serviceType === 'translation' && !inputPayload.target_lang) {
         inputPayload.target_lang = 'hi';
       }
 
-      const response = await api.executeService(agent.wallet, {
-        service_type: serviceType as ServiceType,
-        input: inputPayload,
+      // Execute via Orchestrator (Workflows) to support state channels
+      // We force a single-step workflow targeting this specific agent
+      const response = await api.executeWorkflow({
+        orchestratorWallet: wallet.address, // Initiator
+        steps: [{
+          serviceType: serviceType as ServiceType,
+          input: inputPayload,
+          agentWallet: agent.wallet // Force this specific agent
+        }],
+        userWallet: wallet.address,
+        channelId: channel.channelId
       });
 
-      const data = response.data.data;
-      setResult({ output: data.output, cost: data.cost, duration: data.duration });
+      const workflowResult = response.data.data;
+
+      if (!workflowResult.success) {
+        throw new Error(workflowResult.error || 'Workflow execution failed');
+      }
+
+      const stepResult = workflowResult.steps[0];
+      if (!stepResult) {
+        throw new Error('No result returned from agent step');
+      }
+
+      setResult({
+        output: stepResult.output,
+        cost: stepResult.cost,
+        duration: stepResult.duration
+      });
 
       saveToHistory({
         id: Date.now().toString(),
         agentWallet: agent.wallet,
         serviceType,
         input: inputs,
-        output: data.output,
-        cost: data.cost,
-        duration: data.duration,
+        output: stepResult.output,
+        cost: stepResult.cost,
+        duration: stepResult.duration,
         timestamp: new Date().toISOString(),
         success: true,
       });
+
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Execution failed';
-      setError(msg);
+      // Improve technical error messages
+      const friendlyMsg = msg.includes('timeout')
+        ? 'Agent request timed out. The agent might be busy processing complex data.'
+        : msg;
+
+      setError(friendlyMsg);
 
       saveToHistory({
         id: Date.now().toString(),
