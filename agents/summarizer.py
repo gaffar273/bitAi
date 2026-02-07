@@ -5,7 +5,13 @@ class SummarizerAgent:
 
     def execute(self, text_input):
         # Taking context from the Orchestrator's current data
-        prompt = f"Summarize the following text while keeping key technical terms. Output plain text only, do not use any markdown formatting like **bold** or *italic*: {text_input}"
+        prompt = f"""Summarize the following text in 3-4 complete sentences. 
+Keep key technical terms and important details.
+Output plain text only - no markdown formatting like **bold** or *italic*.
+IMPORTANT: Make sure every sentence is complete and ends with proper punctuation.
+
+Text to summarize:
+{text_input}"""
         response = self.llm.invoke(prompt)
         
         return {

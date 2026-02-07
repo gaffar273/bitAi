@@ -67,17 +67,27 @@ def execute():
             result = summarizer.execute(text)
             
         elif service_type == 'translation':
-            text = input_data.get('text') or str(input_data)
+            # Extract text from input - handle string (chained workflow) or dict
+            if isinstance(input_data, str):
+                text = input_data
+            else:
+                text = input_data.get('text') or input_data.get('output') or str(input_data)
             result = translator.execute(text)
             
         elif service_type == 'pdf_loader':
             if pdf_loader:
+                # Handle string input (chained workflow) - wrap in dict
+                if isinstance(input_data, str):
+                    # String could be a file path or content from previous step
+                    input_data = {'text': input_data}
                 result = pdf_loader.execute(input_data)
             else:
                 result = {"output": "PDF Loader not available", "cost": 0.01}
                 
         elif service_type == 'scraper':
-            # Use real ScraperAgent
+            # Handle string input (chained workflow) - treat as URL
+            if isinstance(input_data, str):
+                input_data = {'url': input_data}
             result = scraper.execute(input_data)
             
         else:

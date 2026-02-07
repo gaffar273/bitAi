@@ -324,10 +324,10 @@ export function WorkflowBuilder() {
                 </div>
                 {/* Show output preview */}
                 {step.output && (
-                  <div className="mt-2 p-3 bg-gray-900 rounded text-sm text-gray-300 max-h-32 overflow-y-auto">
+                  <div className="mt-2 p-3 bg-gray-900 rounded text-sm text-gray-300 max-h-48 overflow-y-auto">
                     {String(typeof step.output === 'string'
-                      ? (step.output.length > 500 ? step.output.slice(0, 500) + '...' : step.output)
-                      : JSON.stringify(step.output, undefined, 2).slice(0, 500))}
+                      ? step.output
+                      : JSON.stringify(step.output, undefined, 2))}
                   </div>
                 )}
               </div>
@@ -338,25 +338,41 @@ export function WorkflowBuilder() {
           {result.settlement && (
             <div className={`mt-6 p-4 rounded-lg border ${result.settlement.autoSettled
               ? 'bg-green-900/20 border-green-500/50'
-              : 'bg-yellow-900/20 border-yellow-500/50'
+              : result.settlement.status === 'open'
+                ? 'bg-blue-900/20 border-blue-500/50'
+                : 'bg-yellow-900/20 border-yellow-500/50'
               }`}>
               <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
-                {result.settlement.autoSettled ? '✅' : '⏳'}
-                Settlement
+                {result.settlement.autoSettled ? '✅' : result.settlement.status === 'open' ? '📂' : '⏳'}
+                Payment Channel
               </h3>
               <div className="text-sm space-y-1">
                 <div className="flex justify-between">
                   <span className="text-gray-400">Status</span>
-                  <span className={result.settlement.autoSettled ? 'text-green-400' : 'text-yellow-400'}>
+                  <span className={
+                    result.settlement.status === 'settled_onchain' || result.settlement.status === 'settled_offchain'
+                      ? 'text-green-400'
+                      : result.settlement.status === 'open'
+                        ? 'text-blue-400'
+                        : 'text-yellow-400'
+                  }>
                     {result.settlement.status === 'settled_onchain'
-                      ? 'Settled On-Chain ✓'
+                      ? 'Settled On-Chain'
                       : result.settlement.status === 'settled_offchain'
-                        ? 'Settled Off-Chain ✓'
-                        : result.settlement.status === 'pending'
-                          ? 'Pending (manual settle needed)'
-                          : result.settlement.status}
+                        ? 'Settled Off-Chain'
+                        : result.settlement.status === 'open'
+                          ? 'Open (payments batched)'
+                          : result.settlement.status === 'pending'
+                            ? 'Pending Settlement'
+                            : result.settlement.status}
                   </span>
                 </div>
+                {result.settlement.status === 'open' && (
+                  <div className="mt-2 p-2 bg-blue-900/30 rounded text-blue-300 text-xs">
+                    Gas Savings: All {result.steps.length} payments are batched in this channel.
+                    Settle when ready via your Wallet page to record balances on-chain with 1 transaction.
+                  </div>
+                )}
                 {result.settlement.txHash && (
                   <div className="flex justify-between">
                     <span className="text-gray-400">Tx Hash</span>

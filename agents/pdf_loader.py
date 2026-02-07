@@ -39,6 +39,20 @@ class PDFLoaderAgent:
                     loader = PyPDFLoader(temp_pdf_path)
                     docs = loader.load()
                     full_text = " ".join([doc.page_content for doc in docs])
+                    
+                    # Clean up text - remove excessive whitespace
+                    full_text = ' '.join(full_text.split())
+                    
+                    # Limit to ~50000 chars but cut at sentence boundary
+                    max_length = 50000
+                    if len(full_text) > max_length:
+                        truncated = full_text[:max_length]
+                        last_period = max(truncated.rfind('. '), truncated.rfind('! '), truncated.rfind('? '))
+                        if last_period > max_length * 0.7:
+                            full_text = truncated[:last_period + 1]
+                        else:
+                            full_text = truncated + "..."
+                    
                     return {
                         "output": full_text,
                         "cost": self.price
@@ -74,6 +88,19 @@ class PDFLoaderAgent:
             loader = PyPDFLoader(file_path)
             docs = loader.load()
             full_text = " ".join([doc.page_content for doc in docs])
+            
+            # Clean up text - remove excessive whitespace
+            full_text = ' '.join(full_text.split())
+            
+            # Limit to ~50000 chars but cut at sentence boundary
+            max_length = 50000
+            if len(full_text) > max_length:
+                truncated = full_text[:max_length]
+                last_period = max(truncated.rfind('. '), truncated.rfind('! '), truncated.rfind('? '))
+                if last_period > max_length * 0.7:
+                    full_text = truncated[:last_period + 1]
+                else:
+                    full_text = truncated + "..."
 
             # 3. Move to processed folder
             shutil.move(file_path, os.path.join(self.processed_folder, filename))

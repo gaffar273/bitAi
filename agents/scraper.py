@@ -80,9 +80,16 @@ class ScraperAgent:
             # Clean up whitespace
             text_content = ' '.join(text_content.split())
             
-            # Limit content length
+            # Limit content length - truncate at sentence boundary
             if len(text_content) > self.max_content_length:
-                text_content = text_content[:self.max_content_length] + "... (truncated)"
+                # Find last sentence ending before limit
+                truncated = text_content[:self.max_content_length]
+                # Look for last sentence ending (. ! ?)
+                last_period = max(truncated.rfind('. '), truncated.rfind('! '), truncated.rfind('? '))
+                if last_period > self.max_content_length * 0.7:  # Found sentence end in last 30%
+                    text_content = truncated[:last_period + 1]
+                else:
+                    text_content = truncated + "..."
             
             # Count words
             word_count = len(text_content.split())

@@ -21,7 +21,8 @@ class Translator:
             f"Detect the language of the following text. "
             f"If it's in Hindi or any Indian language, translate it to English. "
             f"If it's in English, translate it to Hindi. "
-            f"Return only the translated text, nothing else.\n\n"
+            f"Return only the complete translated text with proper punctuation. "
+            f"Make sure all sentences are complete.\n\n"
             f"Text: {text}"
         )
         

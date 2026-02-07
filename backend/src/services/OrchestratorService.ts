@@ -142,8 +142,14 @@ export class OrchestratorService {
                         paymentTxId = payment.transaction.id;
                         console.log(`[Orchestrator] Yellow payment: $${execution.cost} -> ${selectedAgent.wallet.slice(0, 10)}... (gas: $0)`);
                     } catch (paymentError) {
-                        // Fallback: log payment without actual channel (for testing)
-                        console.log(`[Orchestrator] Payment logged: $${execution.cost} -> ${selectedAgent.wallet.slice(0, 10)}...`);
+                        // Fallback: log payment without actual Yellow channel (for testing/demo)
+                        // Still create a "mock" channel ID so the UI shows the batched payments
+                        const mockChannelId = `mock-channel-${Date.now()}`;
+                        if (channelsCreated.size === 0) {
+                            channelsCreated.add(mockChannelId);
+                        }
+
+                        console.log(`[Orchestrator] Payment logged (mock): $${execution.cost} -> ${selectedAgent.wallet.slice(0, 10)}...`);
                         paymentTxId = `tx-${Date.now()}`;
 
                         // Still log the transaction for analytics
@@ -151,7 +157,7 @@ export class OrchestratorService {
                             fromWallet: orchestratorWallet,
                             toWallet: selectedAgent.wallet,
                             amount: execution.cost,
-                            channelId: 'yellow-pending',
+                            channelId: mockChannelId,
                             gasCost: 0,
                             status: 'completed'
                         });
@@ -234,7 +240,8 @@ export class OrchestratorService {
                 }))
             );
 
-            // Auto-settle all channels created during this workflow
+            // Keep channels OPEN for user to manually settle later
+            // This allows batching multiple payments before a single settlement tx (gas savings!)
             let settlement: WorkflowResult['settlement'] = undefined;
             const allChannelIds = [...channelsCreated];
             // Also include the provided channelId if it was used
@@ -244,48 +251,15 @@ export class OrchestratorService {
 
             if (allChannelIds.length > 0) {
                 const primaryChannelId = allChannelIds[0];
-                try {
-                    const { YellowService } = await import('./YellowService');
-
-                    // Try on-chain settlement if we have a private key
-                    const settleKey = process.env.PRIVATE_KEY;
-                    if (settleKey) {
-                        const result = await YellowService.settleOnChain(primaryChannelId, settleKey);
-                        settlement = {
-                            autoSettled: true,
-                            channelId: primaryChannelId,
-                            status: result.success ? 'settled_onchain' : 'settle_failed',
-                            txHash: result.txHash,
-                            explorerUrl: result.explorerUrl,
-                            error: result.error,
-                        };
-                        console.log(`[Orchestrator] Auto-settled channel on-chain: ${result.txHash || 'failed'}`);
-                    } else {
-                        // No private key — settle off-chain via Yellow ClearNode
-                        await YellowService.settle(primaryChannelId);
-                        settlement = {
-                            autoSettled: true,
-                            channelId: primaryChannelId,
-                            status: 'settled_offchain',
-                        };
-                        console.log(`[Orchestrator] Auto-settled channel off-chain: ${primaryChannelId}`);
-                    }
-
-                    // Settle remaining channels if any
-                    for (let i = 1; i < allChannelIds.length; i++) {
-                        try {
-                            await YellowService.settle(allChannelIds[i]);
-                        } catch { /* non-critical */ }
-                    }
-                } catch (settleError) {
-                    console.warn(`[Orchestrator] Auto-settlement failed (non-fatal):`, settleError);
-                    settlement = {
-                        autoSettled: false,
-                        channelId: primaryChannelId,
-                        status: 'pending',
-                        error: settleError instanceof Error ? settleError.message : 'Settlement failed',
-                    };
-                }
+                // Return channel info for manual settlement by user
+                settlement = {
+                    autoSettled: false,
+                    channelId: primaryChannelId,
+                    status: 'open',
+                    error: undefined,
+                };
+                console.log(`[Orchestrator] Channel remains open for manual settlement: ${primaryChannelId.slice(0, 16)}...`);
+                console.log(`[Orchestrator] User can settle via UI when ready (batches all payments into 1 tx)`);
             }
 
             return {
