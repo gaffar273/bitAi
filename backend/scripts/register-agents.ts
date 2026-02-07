@@ -36,6 +36,47 @@ const agents = [
             endpoint: '/load-pdf'
         }],
         pricing: [{ serviceType: 'pdf_loader', priceUsdc: 0.01, currency: 'USD' }]
+    },
+    // Demo agents (non-functional)
+    {
+        services: [{
+            type: 'research',
+            description: 'Deep research and comprehensive analysis on any topic',
+            endpoint: '/research'
+        }],
+        pricing: [{ serviceType: 'research', priceUsdc: 0.15, currency: 'USD' }]
+    },
+    {
+        services: [{
+            type: 'coding',
+            description: 'AI-powered code generation, debugging, and optimization',
+            endpoint: '/code'
+        }],
+        pricing: [{ serviceType: 'coding', priceUsdc: 0.10, currency: 'USD' }]
+    },
+    {
+        services: [{
+            type: 'data_analysis',
+            description: 'Advanced data processing, visualization, and insights',
+            endpoint: '/analyze'
+        }],
+        pricing: [{ serviceType: 'data_analysis', priceUsdc: 0.12, currency: 'USD' }]
+    },
+    {
+        services: [{
+            type: 'security',
+            description: 'Smart contract auditing and security vulnerability detection',
+            endpoint: '/audit'
+        }],
+        pricing: [{ serviceType: 'security', priceUsdc: 0.20, currency: 'USD' }]
+    },
+    {
+        services: [{
+            type: 'copywriting',
+            description: 'Creative content generation for marketing and advertising',
+            endpoint: '/write'
+        }],
+        pricing: [{ serviceType: 'copywriting', priceUsdc: 0.08, currency: 'USD' }]
     }
 ];
 

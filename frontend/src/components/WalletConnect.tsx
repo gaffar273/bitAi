@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 import { PaymentChannelCard } from './PaymentChannelCard';
 import { api } from '../services/api';
+import { toast } from 'react-hot-toast';
 
 interface Props {
     wallet: WalletState;
@@ -25,6 +26,7 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
             navigator.clipboard.writeText(wallet.address);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
+            toast.success('Address copied to clipboard');
         }
     };
 
@@ -44,13 +46,13 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
             const platformAddress = configResponse.data.data.platformWallet;
 
             if (!platformAddress) {
-                alert('Could not fetch platform address');
+                toast.error('Could not fetch platform address');
                 return;
             }
 
             // 2. Send real ETH via MetaMask to platform
             if (!window.ethereum) {
-                alert('MetaMask is required to deposit ETH');
+                toast.error('MetaMask is required to deposit ETH');
                 return;
             }
 
@@ -65,6 +67,7 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
             });
 
             console.log('[WalletConnect] Deposit tx sent:', txHash);
+            toast.success('Deposit transaction sent');
 
             // 3. Create channel after deposit
             await api.fundWalletChannel(wallet.address, {
@@ -79,10 +82,11 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
                 token: 'ETH',
             });
 
+            toast.success('Channel opened successfully');
             refreshBalance();
         } catch (error) {
             console.error('Failed to open channel:', error);
-            alert('Failed to open channel. Transaction may have been rejected.');
+            toast.error('Failed to open channel. Transaction may have been rejected.');
         } finally {
             setOpeningChannel(false);
         }
@@ -100,11 +104,11 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
                 const txData = responseData.data.tx_data as { to: string; value: string; data: string; chainId: number };
 
                 if (!window.ethereum) {
-                    alert('MetaMask is required to sign the settlement.');
+                    toast.error('MetaMask is required to sign the settlement.');
                     return;
                 }
 
-                alert('Please sign the settlement transaction in MetaMask.');
+                toast('Please sign the settlement transaction in MetaMask.', { icon: '✍️' });
 
                 // Request signature/send transaction via MetaMask
                 // For settlement, we are sending a transaction
@@ -134,17 +138,18 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
                     txHash // settleTxHash
                 );
 
-                alert(`Settlement transaction sent! Hash: ${txHash}`);
+                toast.success(`Settlement transaction sent! Hash: ${txHash.slice(0, 10)}...`);
             }
             // Legacy flow (if backend still signed it)
             else if (responseData.success && !('requires_signing' in responseData.data)) {
                 // legacy success handling
+                toast.success('Channel settled successfully');
             }
 
             refreshBalance();
         } catch (error) {
             console.error('Settlement failed:', error);
-            alert('Settlement failed.');
+            toast.error('Settlement failed.');
         }
     };
 
@@ -161,12 +166,12 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
                 const txData = responseData.data.tx_data as { to?: string; value?: string; data?: string; chainId?: number } | undefined;
 
                 if (!txData || !txData.to) {
-                    alert('Settlement data is incomplete. Please try again or contact support.');
+                    toast.error('Settlement data is incomplete. Please try again or contact support.');
                     return;
                 }
 
                 if (!window.ethereum) {
-                    alert('MetaMask is required for on-chain settlement.');
+                    toast.error('MetaMask is required for on-chain settlement.');
                     return;
                 }
 
@@ -199,15 +204,23 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
                     txHash as string
                 );
 
-                alert(`On-chain settlement complete!\nTx: ${txHash}`);
+                toast.success(`On-chain settlement complete!\nTx: ${txHash.slice(0, 10)}...`);
             }
             else if (responseData.success && responseData.data && 'tx_hash' in responseData.data) {
                 const legacyData = responseData.data as { tx_hash: string; explorer_url: string };
-                alert(`On-chain settlement complete!\nTx: ${legacyData.tx_hash}\nView on explorer: ${legacyData.explorer_url}`);
+                toast.success((t) => (
+                    <span>
+                        On-chain settlement complete!
+                        <br />
+                        <a href={legacyData.explorer_url} target="_blank" rel="noopener noreferrer" className="underline">
+                            View transaction
+                        </a>
+                    </span>
+                ));
             }
             else {
                 // No settlement data returned - might be mock mode or channel not ready
-                alert('Settlement initiated. Check your wallet page for status updates.');
+                toast('Settlement initiated. Check your wallet page for status updates.', { icon: 'ℹ️' });
             }
             refreshBalance();
         } catch (error: unknown) {
@@ -220,7 +233,7 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
                 const errObj = error as { code?: number; message?: string; reason?: string };
                 errorMessage = errObj.message || errObj.reason || JSON.stringify(error);
             }
-            alert(`On-chain settlement failed: ${errorMessage}\n\nMake sure you are on Base Sepolia network (Chain ID 84532) and have ETH for gas.`);
+            toast.error(`On-chain settlement failed: ${errorMessage}`);
         }
     };
 
@@ -230,7 +243,7 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
             <div className="space-y-6 py-4">
                 <Card className="border-0 shadow-none bg-transparent">
                     <CardHeader className="text-center px-0">
-                        <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
+                        <div className="mx-auto w-16 h-16 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-full flex items-center justify-center mb-4">
                             <Wallet className="w-8 h-8 text-white" />
                         </div>
                         <CardTitle>
@@ -305,7 +318,7 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
                 <CardHeader className="px-0 pt-0">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                            <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-full flex items-center justify-center">
                                 <Wallet className="w-6 h-6 text-white" />
                             </div>
                             <div>
@@ -363,7 +376,7 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
                         {wallet.isRefreshing ? (
                             <>
                                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                Refreshing...
+                                refreshing...
                             </>
                         ) : (
                             <>
@@ -389,7 +402,7 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
                             size="sm"
                             onClick={handleOpenChannel}
                             disabled={openingChannel}
-                            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                            className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-black font-semibold"
                         >
                             {openingChannel ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -422,7 +435,7 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
                                         />
                                     ) : (
                                         <div
-                                            className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg border border-gray-700/50 hover:border-purple-500/30 cursor-pointer transition-colors"
+                                            className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg border border-gray-700/50 hover:border-amber-500/30 cursor-pointer transition-colors"
                                             onClick={() => setSelectedChannel(channel.channelId)}
                                         >
                                             <div>
@@ -461,4 +474,3 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
         </div>
     );
 }
-
