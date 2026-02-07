@@ -4,6 +4,7 @@
   "description": "AgentSwarm Backend - Yellow SDK + Agent Registry + Payment Channels",
   "main": "src/index.ts",
   "scripts": {
+    "build": "tsc",
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "register-agents": "tsx scripts/register-agents.ts",
