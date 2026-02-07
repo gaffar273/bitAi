@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 import { PaymentChannelCard } from './PaymentChannelCard';
 import { api } from '../services/api';
-import type { ClientSettleResponse, OnChainSettleResponse } from '../types';
 
 interface Props {
     wallet: WalletState;
@@ -75,7 +74,7 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
 
             // 4. Record the deposit
             await api.recordDeposit(wallet.address, {
-                amount: depositAmount,
+                amount: parseInt(depositAmount, 10),
                 txHash: txHash as string,
                 token: 'ETH',
             });
@@ -95,11 +94,10 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
             const data = response.data;
 
             // Check if we need to sign (new flow)
-            // Using a type guard-like check
-            const responseData = data;
-            if ('data' in responseData && 'requires_signing' in responseData.data && (responseData as ClientSettleResponse).data.requires_signing) {
-                const clientData = responseData as ClientSettleResponse;
-                const txData = clientData.data.tx_data;
+            // The response could be either a settled response or a signing-required response
+            const responseData = data as unknown as { success: boolean; data: Record<string, unknown> };
+            if (responseData.success && responseData.data && 'requires_signing' in responseData.data && responseData.data.requires_signing === true) {
+                const txData = responseData.data.tx_data as { to: string; value: string; data: string; chainId: number };
 
                 if (!window.ethereum) {
                     alert('MetaMask is required to sign the settlement.');
@@ -158,10 +156,9 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
             const data = result.data;
 
             // Handle client-side signing
-            const responseData = data;
-            if (responseData.success && 'data' in responseData && 'requires_signing' in responseData.data && (responseData as ClientSettleResponse).data.requires_signing) {
-                const clientData = responseData as ClientSettleResponse;
-                const txData = clientData.data.tx_data;
+            const responseData = data as unknown as { success: boolean; data: Record<string, unknown> };
+            if (responseData.success && responseData.data && 'requires_signing' in responseData.data && responseData.data.requires_signing === true) {
+                const txData = responseData.data.tx_data as { to: string; value: string; data: string; chainId: number };
 
                 if (!window.ethereum) {
                     alert('MetaMask is required for on-chain settlement.');
@@ -196,8 +193,8 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
 
                 alert(`On-chain settlement complete!\nTx: ${txHash}`);
             }
-            else if (responseData.success && 'data' in responseData && 'tx_hash' in responseData.data) {
-                const legacyData = (responseData as OnChainSettleResponse).data;
+            else if (responseData.success && responseData.data && 'tx_hash' in responseData.data) {
+                const legacyData = responseData.data as { tx_hash: string; explorer_url: string };
                 alert(`On-chain settlement complete!\nTx: ${legacyData.tx_hash}\nView on explorer: ${legacyData.explorer_url}`);
             }
             refreshBalance();

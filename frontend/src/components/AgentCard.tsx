@@ -195,7 +195,8 @@ export function AgentCard({ agent }: Props) {
 
     // Special formatting for scraper output
     if (currentServiceType === 'scraper' && typeof output === 'object') {
-      const { title, content, word_count, url, status, error } = output as any;
+      const scraperOutput = output as { title?: string; content?: string; word_count?: number; url?: string; status?: string; error?: string };
+      const { title, content, word_count, url, status, error } = scraperOutput;
 
       if (error) {
         return (

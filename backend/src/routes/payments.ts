@@ -157,7 +157,13 @@ router.post('/settle', async (req: Request, res: Response) => {
         // Note: For real Yellow Network integration, this would return an unsigned CloseChannel message.
         // For this demo (Base Sepolia fallback), we return the on-chain tx data.
 
-        const txData = await YellowService.generateSettlementTxData(channel_id);
+        // Get the channel to find user address
+        const channel = await YellowService.getChannel(channel_id);
+        if (!channel) {
+            res.status(404).json({ success: false, error: 'Channel not found' });
+            return;
+        }
+        const txData = await YellowService.getSettlementData(channel_id, channel.agentA);
 
         res.json({
             success: true,
@@ -217,7 +223,12 @@ router.post('/settle/onchain', async (req: Request, res: Response) => {
         }
 
         // New Flow: Return unsigned data for client
-        const txData = await YellowService.generateSettlementTxData(channel_id);
+        const channel = await YellowService.getChannel(channel_id);
+        if (!channel) {
+            res.status(404).json({ success: false, error: 'Channel not found' });
+            return;
+        }
+        const txData = await YellowService.getSettlementData(channel_id, channel.agentA);
 
         res.json({
             success: true,

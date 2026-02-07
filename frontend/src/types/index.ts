@@ -2,7 +2,7 @@
 // Service & Pricing Types
 // ============================================
 
-export type ServiceType = 'translation' | 'image_gen' | 'scraper' | 'summarizer' | 'orchestrator' | 'pdf_loader' | 'research' | 'coding' | 'data_analysis' | 'security' | 'copywriting' | 'marketing';
+export type ServiceType = 'translation' | 'image_gen' | 'scraper' | 'summarizer' | 'orchestrator' | 'pdf_loader';
 
 export interface Service {
   type: ServiceType;
@@ -55,7 +55,7 @@ export interface GetAgentResponse {
 
 export interface ExecuteServiceRequest {
   service_type: ServiceType;
-  input: unknown;
+  input: Record<string, unknown>;
 }
 
 export interface ExecuteServiceResponse {
@@ -78,7 +78,7 @@ export interface UpdateReputationRequest {
 
 export interface WorkflowStep {
   serviceType: ServiceType;
-  input?: unknown;
+  input?: Record<string, unknown>;
   agentWallet?: string;
 }
 
@@ -86,7 +86,7 @@ export interface WorkflowStepResult {
   step: number;
   serviceType: ServiceType;
   agentWallet: string;
-  input: unknown;
+  input: Record<string, unknown>;
   output: unknown;
   cost: number;
   duration: number;
@@ -216,21 +216,6 @@ export interface SettleChannelResponse {
 // Transaction Types
 // ============================================
 
-export interface ClientSettleResponse {
-  success: boolean;
-  data: {
-    requires_signing: boolean;
-    tx_data: {
-      to: string;
-      data: string;
-      value: string;
-      chainId: number;
-    };
-    channel_id?: string;
-    message: string;
-  };
-}
-
 export interface Transaction {
   id: string;
   fromWallet?: string;
@@ -308,7 +293,7 @@ export interface WalletBalanceResponse {
 }
 
 export interface DepositRequest {
-  amount: string; // wei (string for large numbers)
+  amount: number;
   txHash: string;
   token?: string;
 }

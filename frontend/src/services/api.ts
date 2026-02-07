@@ -43,7 +43,6 @@ import type {
   WalletDepositsResponse,
   WalletInfoResponse,
   SpendingSummary,
-  ClientSettleResponse,
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
@@ -65,25 +64,11 @@ export const api = {
     axios.get(`${API_BASE}/health`),
 
   /**
-   * Get platform configuration (wallet address, chain ID)
+   * Get platform configuration
    * GET /api/wallet/platform-config
    */
   getPlatformConfig: (): Promise<AxiosResponse<{ success: boolean; data: { platformWallet: string; chainId: number } }>> =>
     axios.get(`${API_BASE}/api/wallet/platform-config`),
-
-  /**
-   * Upload a file
-   * POST /api/files/upload
-   */
-  uploadFile: (file: File): Promise<AxiosResponse<{ success: boolean; data: { id: string; filename: string; size: number } }>> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    return axios.post(`${API_BASE}/api/files/upload`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-  },
 
   // ============================================
   // Agents
@@ -179,21 +164,15 @@ export const api = {
    * Settle the channel via Yellow ClearNode (off-chain batch)
    * POST /api/payments/settle
    */
-  /**
-   * Settle the channel (requests settlement data from backend for client signing)
-   * POST /api/payments/settle
-   */
-  settleChannel: (data: SettleChannelRequest): Promise<AxiosResponse<SettleChannelResponse | ClientSettleResponse>> =>
+  settleChannel: (data: SettleChannelRequest): Promise<AxiosResponse<SettleChannelResponse>> =>
     axios.post(`${API_BASE}/api/payments/settle`, data),
 
   /**
-   * Settle on-chain via backend (or request data)
+   * Settle directly on Base Sepolia (real on-chain transaction)
    * POST /api/payments/settle/onchain
    */
-  settleChannelOnChain: (data: SettleChannelRequest): Promise<AxiosResponse<OnChainSettleResponse | ClientSettleResponse>> =>
+  settleChannelOnChain: (data: SettleChannelRequest): Promise<AxiosResponse<OnChainSettleResponse>> =>
     axios.post(`${API_BASE}/api/payments/settle/onchain`, data),
-
-
 
   /**
    * Get transactions for a specific channel

@@ -274,8 +274,9 @@ export const settleChannel = async (channelId: string) => {
             console.log('Channel settled!');
             console.log('Transaction hash:', result.tx_hash);
             console.log('Final balances:', result.final_state.balances);
-        } else {
-            console.log('Client signing required:', result.message);
+        } else if ('message' in result) {
+            const clientResult = result as { message: string };
+            console.log('Client signing required:', clientResult.message);
         }
 
         return result;

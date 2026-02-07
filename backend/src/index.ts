@@ -43,9 +43,6 @@ async function startServer() {
     console.log('[Database] Initializing schema...');
     try {
       await initDatabase();
-
-      // Initialize YellowService (load channels)
-      await YellowService.init();
     } catch (error) {
       console.error('[Database] Failed to initialize:', error);
       console.log('[Server] Continuing without database...');

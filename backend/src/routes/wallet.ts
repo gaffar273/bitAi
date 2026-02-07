@@ -396,8 +396,8 @@ router.post('/:address/settle-callback', async (req: Request, res: Response) => 
         channel.settleTxHash = tx_hash;
         channel.updatedAt = new Date();
 
-        // Update channel in YellowService
-        await YellowService.updateChannel(channel_id, channel);
+        // Mark channel as settled (this updates the internal map)
+        await YellowService.markSettled(channel_id, tx_hash);
 
         res.json({
             success: true,

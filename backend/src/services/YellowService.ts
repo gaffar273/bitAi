@@ -1,15 +1,8 @@
 import WebSocket from 'ws';
-
-// Fix BigInt serialization for JSON.stringify used in SDK
-(BigInt.prototype as any).toJSON = function () {
-    return this.toString();
-};
-
 import { ethers } from 'ethers';
 import { config } from '../config';
 import { PaymentChannel, StateUpdate, Transaction } from '../types';
 import { generateId } from '../utils/blockchain';
-import { getSQL } from './DatabaseService';
 
 // Import Nitrolite SDK - use what works with our types
 import {
@@ -18,9 +11,24 @@ import {
     generateChannelNonce,
 } from '@erc7824/nitrolite';
 
-// In-memory storage (loaded from database on init)
+// FIX: Patch BigInt serialization for JSON.stringify used by SDK
+(BigInt.prototype as any).toJSON = function () {
+    return this.toString();
+};
+
+// In-memory storage
 const channels: Map<string, PaymentChannel> = new Map();
 const transactions: Transaction[] = [];
+
+// Yellow Ledger - PROOF of ClearNode communication
+interface YellowLedgerEntry {
+    timestamp: string;
+    type: 'connection' | 'session_created' | 'payment' | 'rpc_response' | 'settlement';
+    message: string;
+    data: unknown;
+    signature?: string;
+}
+const yellowLedger: YellowLedgerEntry[] = [];
 
 interface YellowSession {
     sessionId: string;
@@ -36,84 +44,21 @@ const sessions: Map<string, YellowSession> = new Map();
 export class YellowService {
     private static ws: WebSocket | null = null;
     private static connectionPromise: Promise<void> | null = null;
-    private static initialized = false;
-
-    // Initialize service - load channels from database
-    static async init() {
-        if (this.initialized) return;
-        await this.loadChannelsFromDb();
-        this.initialized = true;
-        console.log('[Yellow] Service initialized, loaded channels from database');
-    }
-
-    // Load channels from database into memory
-    private static async loadChannelsFromDb() {
-        const sql = getSQL();
-        if (!sql) return;
-
-        try {
-            const rows = await sql`
-                SELECT channel_id, session_id, agent_a, agent_b, balance_a, balance_b, nonce, status, created_at, settled_at
-                FROM payment_channels
-                WHERE status != 'settled'
-            `;
-
-            for (const row of rows) {
-                const channel: PaymentChannel = {
-                    channelId: row.channel_id,
-                    agentA: row.agent_a,
-                    agentB: row.agent_b,
-                    balanceA: parseInt(row.balance_a),
-                    balanceB: parseInt(row.balance_b),
-                    nonce: row.nonce,
-                    status: row.status,
-                    openTxHash: row.session_id,
-                    createdAt: row.created_at,
-                    updatedAt: new Date(),
-                };
-                channels.set(row.channel_id, channel);
-            }
-            console.log(`[Yellow] Loaded ${rows.length} active channels from database`);
-        } catch (error) {
-            console.error('[Yellow] Error loading channels from database:', error);
-        }
-    }
-
-    // Save channel to database
-    private static async saveChannelToDb(channel: PaymentChannel) {
-        const sql = getSQL();
-        if (!sql) return;
-
-        try {
-            await sql`
-                INSERT INTO payment_channels (channel_id, session_id, agent_a, agent_b, balance_a, balance_b, nonce, status, created_at)
-                VALUES (${channel.channelId}, ${channel.openTxHash || ''}, ${channel.agentA}, ${channel.agentB}, ${channel.balanceA.toString()}, ${channel.balanceB.toString()}, ${channel.nonce}, ${channel.status}, ${channel.createdAt})
-                ON CONFLICT (channel_id) DO UPDATE SET
-                    balance_a = ${channel.balanceA.toString()},
-                    balance_b = ${channel.balanceB.toString()},
-                    nonce = ${channel.nonce},
-                    status = ${channel.status},
-                    settled_at = ${channel.status === 'settled' ? new Date() : null}
-            `;
-        } catch (error) {
-            console.error('[Yellow] Error saving channel to database:', error);
-        }
-    }
 
     // Create a message signer compatible with Nitrolite SDK
     static createMessageSigner(privateKey: string) {
         const wallet = new ethers.Wallet(privateKey);
         return async (payload: unknown): Promise<string> => {
-            // Handle BigInt serialization (convert to string)
-            const message = typeof payload === 'string'
-                ? payload
-                : JSON.stringify(payload, (_, v) => typeof v === 'bigint' ? v.toString() : v);
+            // Handle BigInt serialization for Yellow SDK
+            const message = typeof payload === 'string' ? payload : JSON.stringify(payload, (_, v) =>
+                typeof v === 'bigint' ? v.toString() : v
+            );
             return await wallet.signMessage(message);
         };
     }
 
-    // Connect to Yellow ClearNode with retries
-    static async connect(retries = 3, delay = 2000): Promise<void> {
+    // Connect to Yellow ClearNode
+    static async connect(): Promise<void> {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             return;
         }
@@ -123,20 +68,18 @@ export class YellowService {
         }
 
         this.connectionPromise = new Promise((resolve, reject) => {
-            console.log(`[Yellow] Connecting to: ${config.yellowWsUrl} (Attempt ${4 - retries}/3)`);
+            console.log(`[Yellow] Connecting to: ${config.yellowWsUrl}`);
 
             this.ws = new WebSocket(config.yellowWsUrl);
 
-            const timer = setTimeout(() => {
-                if (this.ws?.readyState !== WebSocket.OPEN) {
-                    this.ws?.close(); // Ensure we close the hanged connection
-                    reject(new Error('Connection timeout'));
-                }
-            }, 15000); // Increased to 15s
-
             this.ws.onopen = () => {
                 console.log('[Yellow] Connected to ClearNode!');
-                clearTimeout(timer);
+                yellowLedger.push({
+                    timestamp: new Date().toISOString(),
+                    type: 'connection',
+                    message: 'Connected to Yellow Network ClearNode',
+                    data: { url: config.yellowWsUrl }
+                });
                 resolve();
             };
 
@@ -146,7 +89,7 @@ export class YellowService {
 
             this.ws.onerror = (error) => {
                 console.error('[Yellow] WebSocket error:', error);
-                // Don't reject here immediately, let close/timeout handle it or immediate failure
+                reject(error);
             };
 
             this.ws.onclose = () => {
@@ -154,19 +97,15 @@ export class YellowService {
                 this.ws = null;
                 this.connectionPromise = null;
             };
+
+            setTimeout(() => {
+                if (this.ws?.readyState !== WebSocket.OPEN) {
+                    reject(new Error('Connection timeout'));
+                }
+            }, 10000);
         });
 
-        try {
-            await this.connectionPromise;
-        } catch (error) {
-            this.connectionPromise = null; // Reset promise
-            if (retries > 0) {
-                console.log(`[Yellow] Connection failed, retrying in ${delay}ms...`);
-                await new Promise(r => setTimeout(r, delay));
-                return this.connect(retries - 1, delay * 1.5);
-            }
-            throw error;
-        }
+        return this.connectionPromise;
     }
 
     // Create a payment session between two agents using Nitrolite SDK
@@ -242,9 +181,6 @@ export class YellowService {
         };
         channels.set(channelId, channel);
 
-        // Persist to database
-        await this.saveChannelToDb(channel);
-
         return { sessionId, channelId };
     }
 
@@ -257,27 +193,21 @@ export class YellowService {
         _signerPrivateKey?: string
     ): Promise<{ transaction: Transaction; channel: PaymentChannel }> {
         const channel = channels.get(channelId);
-        if (!channel) {
-            console.log(`[Yellow] Channel not found: ${channelId}`);
-            console.log(`[Yellow] Available channels: ${Array.from(channels.keys()).join(', ') || 'none'}`);
-            throw new Error('Channel not found');
-        }
+        if (!channel) throw new Error('Channel not found');
         if (channel.status !== 'open') throw new Error('Channel is not open');
 
         const amountNum = parseInt(amount);
 
-        // Validate and update balances (case-insensitive comparison for Ethereum addresses)
-        const fromLower = from.toLowerCase();
-        if (fromLower === channel.agentA.toLowerCase()) {
+        // Validate and update balances
+        if (from === channel.agentA) {
             if (channel.balanceA < amountNum) throw new Error('Insufficient balance');
             channel.balanceA -= amountNum;
             channel.balanceB += amountNum;
-        } else if (fromLower === channel.agentB.toLowerCase()) {
+        } else if (from === channel.agentB) {
             if (channel.balanceB < amountNum) throw new Error('Insufficient balance');
             channel.balanceB -= amountNum;
             channel.balanceA += amountNum;
         } else {
-            console.log(`[Yellow] Sender mismatch: from=${from}, agentA=${channel.agentA}, agentB=${channel.agentB}`);
             throw new Error('Sender not in channel');
         }
 
@@ -298,9 +228,6 @@ export class YellowService {
         transactions.push(tx);
 
         console.log(`[Yellow] Payment: ${amount} ${from.slice(0, 10)}... -> ${to.slice(0, 10)}... (nonce: ${channel.nonce})`);
-
-        // Persist updated channel state
-        await this.saveChannelToDb(channel);
 
         return { transaction: tx, channel };
     }
@@ -444,9 +371,27 @@ export class YellowService {
         try {
             const response = parseAnyRPCResponse(data);
             console.log('[Yellow] RPC:', JSON.stringify(response).slice(0, 100));
+
+            yellowLedger.push({
+                timestamp: new Date().toISOString(),
+                type: 'rpc_response',
+                message: 'Received RPC response from ClearNode',
+                data: response
+            });
         } catch {
             console.log('[Yellow] Message received');
+            yellowLedger.push({
+                timestamp: new Date().toISOString(),
+                type: 'rpc_response',
+                message: 'Received raw message from ClearNode',
+                data: { raw: data.toString() }
+            });
         }
+    }
+
+    // Get the proof ledger
+    static getLedger(): YellowLedgerEntry[] {
+        return yellowLedger;
     }
 
     // Get all sessions for a specific user address
@@ -466,12 +411,6 @@ export class YellowService {
     // Get channel by ID
     static async getChannel(channelId: string): Promise<PaymentChannel | null> {
         return channels.get(channelId) || null;
-    }
-
-    // Update channel (for settlement callbacks)
-    static async updateChannel(channelId: string, channel: PaymentChannel): Promise<void> {
-        channels.set(channelId, channel);
-        await this.saveChannelToDb(channel);
     }
 
     // Get channel state
@@ -547,7 +486,7 @@ export class YellowService {
         const channel = channels.get(channelId);
         if (!channel) throw new Error('Channel not found');
 
-        const signerKey = privateKey || config.privateKey;
+        const signerKey = (privateKey && privateKey !== 'demo-key') ? privateKey : config.privateKey;
         if (!signerKey) {
             throw new Error('Private key required for on-chain settlement');
         }
@@ -609,6 +548,18 @@ export class YellowService {
             const explorerUrl = `${config.baseSepolia.explorer}/tx/${tx.hash}`;
 
             console.log(`[Yellow] Settlement confirmed!`);
+
+            // Log to Yellow Ledger
+            yellowLedger.push({
+                timestamp: new Date().toISOString(),
+                type: 'settlement',
+                message: 'Settled on-chain via Base Sepolia',
+                data: {
+                    txHash: tx.hash,
+                    block: receipt.blockNumber,
+                    explorer: explorerUrl
+                }
+            });
             console.log(`[Yellow] Block: ${receipt.blockNumber}`);
             console.log(`[Yellow] Gas used: ${receipt.gasUsed.toString()}`);
             console.log(`[Yellow] Explorer: ${explorerUrl}`);
@@ -629,19 +580,20 @@ export class YellowService {
         }
     }
 
-    // Generate settlement transaction data (unsigned) for client-side signing
-    static async generateSettlementTxData(channelId: string): Promise<{
-        to: string;
-        data: string;
-        value: string;
-        chainId: number;
-    }> {
+    // Get settlement data for client-side signing
+    static async getSettlementData(channelId: string, userAddress: string) {
         const channel = channels.get(channelId);
         if (!channel) throw new Error('Channel not found');
+        if (channel.status === 'settled') throw new Error('Channel already settled');
 
-        // Create settlement JSON payload for logging (stored in backend, not on-chain)
+        // Determine user's role and balances
+        const isAgentA = channel.agentA.toLowerCase() === userAddress.toLowerCase();
+        const userBalance = isAgentA ? channel.balanceA : channel.balanceB;
+        const partnerBalance = isAgentA ? channel.balanceB : channel.balanceA;
+        const partnerAddress = isAgentA ? channel.agentB : channel.agentA;
+
+        // Create settlement data
         const settlementData = {
-            type: 'YELLOW_SETTLEMENT',
             channelId: channel.channelId,
             agentA: channel.agentA,
             agentB: channel.agentB,
@@ -651,17 +603,99 @@ export class YellowService {
             timestamp: Date.now(),
         };
 
-        // Log settlement data (for verification)
-        console.log('[Yellow] Settlement data:', JSON.stringify(settlementData));
+        // Create Hex data for the on-chain proof transaction
+        const data = ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify({
+            type: 'YELLOW_SETTLEMENT',
+            ...settlementData,
+        })));
 
-        // Send as simple ETH transfer - MetaMask blocks data to internal accounts
-        // The settlement is recorded in our backend database
         return {
-            to: channel.agentB, // Send to platform wallet
-            data: '0x', // Empty data - just a simple ETH transfer
-            value: channel.balanceB.toString(), // Transfer the agent pool balance
-            chainId: config.baseSepolia.chainId,
+            // Self-transfer to record settlement proof on-chain (no smart contract needed)
+            to: userAddress,
+            value: '0x0',
+            data: data,
+            channelId: channel.channelId,
+            settlementData,
+            // Summary for display
+            summary: {
+                userAddress,
+                partnerAddress,
+                userBalance,
+                partnerBalance,
+                totalTransactions: channel.nonce,
+            },
         };
+    }
+
+    // Mark channel as settled (after client reports on-chain tx success)
+    static async markSettled(channelId: string, txHash: string) {
+        const channel = channels.get(channelId);
+        if (!channel) throw new Error('Channel not found');
+
+        // Find session for this channel
+        let sessionKey: string | null = null;
+        let session: YellowSession | null = null;
+        for (const [key, s] of sessions) {
+            if (s.channelId === channelId) {
+                sessionKey = key;
+                session = s;
+                break;
+            }
+        }
+
+        // Try to close the session on Yellow ClearNode (best-effort)
+        if (session && this.ws && this.ws.readyState === WebSocket.OPEN && config.privateKey) {
+            try {
+                const { createCloseAppSessionMessage } = await import('@erc7824/nitrolite');
+                const signer = this.createMessageSigner(config.privateKey);
+                const closeRequest = {
+                    app_session_id: session.sessionId,
+                    allocations: [
+                        { participant: channel.agentA, asset: 'eth', amount: channel.balanceA.toString() },
+                        { participant: channel.agentB, asset: 'eth', amount: channel.balanceB.toString() },
+                    ],
+                };
+                const signedMessage = await createCloseAppSessionMessage(
+                    signer as Parameters<typeof createCloseAppSessionMessage>[0],
+                    [closeRequest] as unknown as Parameters<typeof createCloseAppSessionMessage>[1]
+                );
+                this.ws.send(signedMessage);
+                console.log(`[Yellow] Close session sent to ClearNode for channel: ${channelId}`);
+            } catch (err) {
+                console.warn(`[Yellow] Could not close ClearNode session (non-fatal):`, err);
+            }
+        }
+
+        // Update local state
+        channel.status = 'settled';
+        channel.settleTxHash = txHash;
+        channel.updatedAt = new Date();
+        channels.set(channelId, channel);
+
+        // Remove session
+        if (sessionKey) {
+            sessions.delete(sessionKey);
+        }
+
+        console.log(`[Yellow] Client settled channel on-chain: ${txHash}`);
+        console.log(`[Yellow] Final: ${channel.agentA.slice(0, 10)}... = ${channel.balanceA}, ${channel.agentB.slice(0, 10)}... = ${channel.balanceB}`);
+
+        // Log to Ledger
+        yellowLedger.push({
+            timestamp: new Date().toISOString(),
+            type: 'settlement',
+            message: 'Client-side settlement on Base Sepolia',
+            data: {
+                txHash,
+                channelId,
+                finalBalances: {
+                    [channel.agentA]: channel.balanceA,
+                    [channel.agentB]: channel.balanceB,
+                },
+            }
+        });
+
+        return channel;
     }
 
     // Disconnect
