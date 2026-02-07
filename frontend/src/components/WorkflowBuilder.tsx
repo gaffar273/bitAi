@@ -20,10 +20,10 @@ type ServiceType = keyof typeof SERVICE_CONFIGS;
 
 interface WorkflowBuilderProps {
   wallet: WalletState;
-  onConnectWallet: () => void;
+  refreshBalance: () => Promise<void>;
 }
 
-export function WorkflowBuilder({ wallet }: Omit<WorkflowBuilderProps, 'onConnectWallet'>) {
+export function WorkflowBuilder({ wallet, refreshBalance }: Omit<WorkflowBuilderProps, 'onConnectWallet'>) {
   const [steps, setSteps] = useState<{ serviceType: ServiceType }[]>([]);
   const [inputText, setInputText] = useState('');
   const [executing, setExecuting] = useState(false);
@@ -104,6 +104,8 @@ export function WorkflowBuilder({ wallet }: Omit<WorkflowBuilderProps, 'onConnec
 
       if (response.data.success) {
         setResult(response.data.data);
+        // Refresh wallet balance and channels to reflect changes
+        refreshBalance();
       } else {
         setError(response.data.error || 'Workflow execution failed');
       }

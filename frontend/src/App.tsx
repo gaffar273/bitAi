@@ -99,7 +99,7 @@ function App() {
                     className={`
                       relative overflow-hidden transition-all duration-300
                       ${wallet.address
-                        ? "glass border-amber-500/30 hover:border-amber-400/50 text-amber-300 hover:text-amber-200"
+                        ? "glass border-amber-500/30 hover:border-amber-400/50 hover:bg-white/10 text-amber-300 hover:text-amber-200"
                         : "bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500 hover:shadow-lg hover:shadow-amber-500/25 text-black font-semibold border-0"
                       }
                     `}
@@ -193,6 +193,7 @@ function App() {
             {activeTab === 'workflow' && (
               <WorkflowBuilder
                 wallet={wallet}
+                refreshBalance={refreshBalance}
               />
             )}
             {activeTab === 'payments' && <PaymentDashboard wallet={wallet} />}
