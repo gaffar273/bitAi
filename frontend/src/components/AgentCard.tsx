@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Globe, Palette, Search, FileText, Bot, Circle, Play, Loader2, CheckCircle2, AlertCircle, X, Beaker, Terminal, LineChart, Shield, PenTool, Megaphone, TrendingUp, CheckCircle } from 'lucide-react';
+import { Globe, Palette, Search, FileText, Bot, Circle, Play, Loader2, CheckCircle2, AlertCircle, Beaker, Terminal, LineChart, Shield, PenTool, Megaphone, TrendingUp, CheckCircle } from 'lucide-react';
 import type { Agent, ServiceType } from '../types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

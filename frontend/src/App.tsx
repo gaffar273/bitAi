@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, Activity, TrendingDown, Workflow, Wallet, CreditCard } from 'lucide-react';
+import { Bot, Activity, Workflow, Wallet, CreditCard } from 'lucide-react';
 import { AgentList } from './components/AgentList';
 import { TransactionFeed } from './components/TransactionFeed';
 //import { GasSavings } from './components/GasSavings';

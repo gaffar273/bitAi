@@ -208,7 +208,7 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
             }
             else if (responseData.success && responseData.data && 'tx_hash' in responseData.data) {
                 const legacyData = responseData.data as { tx_hash: string; explorer_url: string };
-                toast.success((t) => (
+                toast.success(
                     <span>
                         On-chain settlement complete!
                         <br />
@@ -216,7 +216,7 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
                             View transaction
                         </a>
                     </span>
-                ));
+                );
             }
             else {
                 // No settlement data returned - might be mock mode or channel not ready
