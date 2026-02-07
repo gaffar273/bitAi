@@ -61,6 +61,27 @@ export function WorkflowBuilder() {
       return;
     }
 
+    // Check for wallet connection
+    const userWallet = localStorage.getItem('roguecapital_wallet_address');
+    if (!userWallet) {
+      setError('Please connect your wallet first! Click the wallet icon in the header.');
+      return;
+    }
+
+    // Check for open payment channel
+    try {
+      const channelsRes = await api.getWalletChannels(userWallet);
+      const channels = channelsRes.data?.data?.channels || [];
+      const openChannel = channels.find((ch: { status: string }) => ch.status === 'open');
+      if (!openChannel) {
+        setError('No open payment channel! Please open a channel in the Wallet section before running workflows.');
+        return;
+      }
+    } catch {
+      setError('Could not verify payment channel. Please open a channel in the Wallet section.');
+      return;
+    }
+
     setExecuting(true);
     setResult(null);
     setError(null);

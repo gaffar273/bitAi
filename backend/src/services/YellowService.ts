@@ -593,18 +593,12 @@ export class YellowService {
         const partnerBalance = isAgentA ? channel.balanceB : channel.balanceA;
         const partnerAddress = isAgentA ? channel.agentB : channel.agentA;
 
-        // Calculate total settlement amount (agent's earnings in wei)
-        // Convert internal units back to wei for on-chain transfer
-        // Internal units use 1e15 per dollar, so $0.08 = 80000000000000 units
-        const settlementAmountWei = BigInt(channel.balanceB);
-        // For display, convert to ETH-like units (divide by 1e15, show as fractional ETH)
-        const settlementAmountHex = '0x' + (settlementAmountWei > 0n ? settlementAmountWei.toString(16) : '0');
+        // On settlement, user's remaining balance goes back to their wallet
+        // Convert internal units to wei for on-chain transfer
+        const userBalanceWei = BigInt(userBalance);
+        const userBalanceHex = '0x' + (userBalanceWei > 0n ? userBalanceWei.toString(16) : '0');
 
-        // Use platform wallet as recipient for settlement proof
-        // Using a real address (not burn address) to avoid MetaMask errors
-        const platformWallet = process.env.PLATFORM_WALLET || '0x742d35Cc6634C0532925a3b844Bc9e7595f1E0a0';
-
-        // Store settlement proof in channel for reference (not in tx data)
+        // Store settlement proof in channel for reference
         const settlementProof = {
             type: 'YELLOW_SETTLEMENT',
             channelId: channel.channelId,
@@ -614,13 +608,15 @@ export class YellowService {
             balanceB: channel.balanceB,
             nonce: channel.nonce,
             timestamp: Date.now(),
+            // Record that user is withdrawing their remaining balance
+            userWithdrawal: userBalance,
         };
 
         return {
-            // Simple ETH transfer to platform wallet (NO data field to avoid MetaMask error)
-            to: platformWallet,
-            value: settlementAmountHex,
-            // NO data field - this causes "External transactions to internal accounts cannot include data"
+            // Send remaining balance back to user's own wallet
+            to: userAddress,
+            value: userBalanceHex,
+            // NO data field - simple ETH transfer
             chainId: config.baseSepolia.chainId,
             channelId: channel.channelId,
             settlementData: settlementProof,
@@ -630,7 +626,8 @@ export class YellowService {
                 partnerAddress,
                 userBalance,
                 partnerBalance,
-                settlementAmount: settlementAmountWei.toString(),
+                // User gets their remaining balance back
+                settlementAmount: userBalanceWei.toString(),
                 totalTransactions: channel.nonce,
             },
         };
