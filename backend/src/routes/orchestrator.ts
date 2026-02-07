@@ -20,7 +20,7 @@ const router = Router();
  */
 router.post('/workflow', async (req, res) => {
     try {
-        const { orchestratorWallet, steps, channelId } = req.body;
+        const { orchestratorWallet, steps, channelId, userWallet } = req.body;
 
         if (!orchestratorWallet || !steps || !Array.isArray(steps)) {
             return res.status(400).json({
@@ -29,10 +29,13 @@ router.post('/workflow', async (req, res) => {
             });
         }
 
+        console.log(`[Orchestrator] Workflow request - channelId: ${channelId}, userWallet: ${userWallet?.slice(0, 10)}...`);
+
         const result = await OrchestratorService.executeWorkflow(
             orchestratorWallet,
             steps as WorkflowStep[],
-            channelId
+            channelId,
+            userWallet
         );
 
         res.json({ success: true, data: result });

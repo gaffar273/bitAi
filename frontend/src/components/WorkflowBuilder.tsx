@@ -72,13 +72,31 @@ export function WorkflowBuilder() {
         input: index === 0 ? { text: inputText, url: inputText, prompt: inputText } : undefined,
       }));
 
-      // Get connected user wallet
-      const userWallet = localStorage.getItem('agentswarm_wallet_address');
+      // Get connected user wallet (same key as use-wallet.ts)
+      const userWallet = localStorage.getItem('roguecapital_wallet_address');
+
+      // Try to get user's existing channel to use for payments
+      let channelId: string | undefined;
+      if (userWallet) {
+        try {
+          const channelsRes = await api.getWalletChannels(userWallet);
+          const channels = channelsRes.data?.data?.channels || [];
+          // Use first open channel if available
+          const openChannel = channels.find((ch: { status: string }) => ch.status === 'open');
+          if (openChannel) {
+            channelId = openChannel.channelId;
+            console.log('[Workflow] Using existing channel:', channelId);
+          }
+        } catch {
+          console.log('[Workflow] No existing channel, will create new one');
+        }
+      }
 
       const response = await api.executeWorkflow({
         orchestratorWallet: agents[0].wallet,
         steps: workflowSteps,
-        userWallet: userWallet || undefined // Pass user wallet if connected
+        userWallet: userWallet || undefined,
+        channelId: channelId // Pass existing channel so payments go there
       });
 
       if (response.data.success) {

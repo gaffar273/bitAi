@@ -158,20 +158,28 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
             // Handle client-side signing
             const responseData = data as unknown as { success: boolean; data: Record<string, unknown> };
             if (responseData.success && responseData.data && 'requires_signing' in responseData.data && responseData.data.requires_signing === true) {
-                const txData = responseData.data.tx_data as { to: string; value: string; data: string; chainId: number };
+                const txData = responseData.data.tx_data as { to?: string; value?: string; data?: string; chainId?: number } | undefined;
+
+                if (!txData || !txData.to) {
+                    alert('Settlement data is incomplete. Please try again or contact support.');
+                    return;
+                }
 
                 if (!window.ethereum) {
                     alert('MetaMask is required for on-chain settlement.');
                     return;
                 }
 
+                // Use Base Sepolia as fallback chain ID
+                const chainIdHex = '0x' + (txData.chainId || 84532).toString(16);
+
+                // Simple ETH transfer - NO data field to avoid "External transactions to internal accounts cannot include data" error
                 const params = [
                     {
                         from: wallet.address,
                         to: txData.to,
-                        data: txData.data,
-                        // value: txData.value, // Usually 0 for settlement data calls
-                        chainId: '0x' + txData.chainId.toString(16),
+                        value: txData.value || '0x0', // Settlement amount in wei
+                        chainId: chainIdHex,
                     },
                 ];
 
@@ -186,9 +194,9 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
                 await api.settleCallback(
                     wallet.address,
                     channelId,
-                    txHash,
+                    txHash as string,
                     '',
-                    txHash
+                    txHash as string
                 );
 
                 alert(`On-chain settlement complete!\nTx: ${txHash}`);
@@ -196,6 +204,10 @@ export function WalletConnect({ wallet, connectWallet, disconnectWallet, refresh
             else if (responseData.success && responseData.data && 'tx_hash' in responseData.data) {
                 const legacyData = responseData.data as { tx_hash: string; explorer_url: string };
                 alert(`On-chain settlement complete!\nTx: ${legacyData.tx_hash}\nView on explorer: ${legacyData.explorer_url}`);
+            }
+            else {
+                // No settlement data returned - might be mock mode or channel not ready
+                alert('Settlement initiated. Check your wallet page for status updates.');
             }
             refreshBalance();
         } catch (error: unknown) {

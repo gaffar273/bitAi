@@ -21,12 +21,16 @@ export class PaymentService {
         privateKey?: string,
         actualRecipient?: string // For logging the actual agent that provided service
     ) {
+        // Convert dollar amount to wei-like units (multiply by 1e15 for reasonable precision)
+        // This ensures small amounts like $0.03 become 30000000000000 (30 trillion units)
+        const amountInUnits = Math.floor(amount * 1e15).toString();
+
         // Execute payment via Yellow
         const result = await YellowService.sendPayment(
             channelId,
             from,
             to,
-            amount.toString(),
+            amountInUnits,
             privateKey
         );
 

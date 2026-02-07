@@ -113,31 +113,45 @@ export class OrchestratorService {
                 let paymentTxId: string | undefined;
                 if (execution.cost > 0) {
                     try {
-                        // Auto-create Yellow channel if not provided
+                        // Use provided channel or create one
                         let activeChannelId = channelId;
+                        const { YellowService } = await import('./YellowService');
+
                         if (!activeChannelId || activeChannelId === 'default-channel') {
                             // Create a real Yellow session/channel
-                            const { YellowService } = await import('./YellowService');
                             const payerWallet = userWallet || orchestratorWallet;
+                            // Use 1e18 units (1 ETH) as initial balance - payments use 1e15 per dollar
+                            const initialBalance = '1000000000000000000'; // 1e18 wei equivalent
                             const session = await YellowService.createSession(
                                 payerWallet,
                                 selectedAgent.wallet,
-                                '1000000', // 1 USDC deposit
+                                initialBalance,
                                 '0',
                                 process.env.PRIVATE_KEY
                             );
                             activeChannelId = session.channelId;
                             channelsCreated.add(activeChannelId);
                             console.log(`[Orchestrator] Created Yellow channel: ${activeChannelId.slice(0, 10)}...`);
+                        } else {
+                            // Using existing channel - log it
+                            console.log(`[Orchestrator] Using existing channel: ${activeChannelId.slice(0, 10)}...`);
+                            channelsCreated.add(activeChannelId);
                         }
 
-                        // Real Yellow payment (instant, 0 gas)
+                        // Get channel to find the correct "to" address (channel partner)
+                        const channel = await YellowService.getChannel(activeChannelId);
                         const payerWallet = userWallet || orchestratorWallet;
+                        // Pay to channel's agentB (the pool), not the specific agent
+                        // This consolidates all agent fees into the visible "Agent Pool"
+                        const toAddress = channel ? channel.agentB : selectedAgent.wallet;
+
                         const payment = await PaymentService.transfer(
                             activeChannelId,
                             payerWallet,
-                            selectedAgent.wallet,
-                            execution.cost
+                            toAddress,
+                            execution.cost,
+                            undefined,
+                            selectedAgent.wallet // Log actual recipient for tracking
                         );
                         paymentTxId = payment.transaction.id;
                         console.log(`[Orchestrator] Yellow payment: $${execution.cost} -> ${selectedAgent.wallet.slice(0, 10)}... (gas: $0)`);
