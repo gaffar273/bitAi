@@ -1,19 +1,28 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Workflow, X, Play, Loader2, Sparkles, CheckCircle2, AlertTriangle, Search, FileText, Globe, Palette, FileUp } from 'lucide-react';
 import type { WorkflowStep, WorkflowResult, Agent } from '../types';
 import { api } from '../services/api';
+import type { WalletState } from '../hooks/use-wallet';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 const SERVICE_CONFIGS = {
-  scraper: { emoji: '🔍', name: 'Web Scraper', color: 'blue', price: 0.01, placeholder: 'Enter URL to scrape...' },
-  summarizer: { emoji: '📝', name: 'Summarizer', color: 'purple', price: 0.02, placeholder: 'Enter text to summarize...' },
-  translation: { emoji: '🌍', name: 'Translator', color: 'green', price: 0.02, placeholder: 'Enter text to translate...' },
-  image_gen: { emoji: '🎨', name: 'Image Generator', color: 'pink', price: 0.05, placeholder: 'Describe the image...' },
-  pdf_loader: { emoji: '📄', name: 'PDF Loader', color: 'orange', price: 0.01, placeholder: 'PDF files will be auto-loaded...' },
+  scraper: { icon: Search, name: 'Web Scraper', gradient: 'from-blue-500 to-cyan-500', price: 0.01, placeholder: 'Enter URL to scrape...' },
+  summarizer: { icon: FileText, name: 'Summarizer', gradient: 'from-yellow-500 to-amber-500', price: 0.02, placeholder: 'Enter text to summarize...' },
+  translation: { icon: Globe, name: 'Translator', gradient: 'from-emerald-500 to-teal-500', price: 0.02, placeholder: 'Enter text to translate...' },
+  image_gen: { icon: Palette, name: 'Image Generator', gradient: 'from-pink-500 to-rose-500', price: 0.05, placeholder: 'Describe the image...' },
+  pdf_loader: { icon: FileUp, name: 'PDF Loader', gradient: 'from-amber-500 to-orange-500', price: 0.01, placeholder: 'PDF files will be auto-loaded...' },
 };
 
 type ServiceType = keyof typeof SERVICE_CONFIGS;
 
-export function WorkflowBuilder() {
+interface WorkflowBuilderProps {
+  wallet: WalletState;
+  onConnectWallet: () => void;
+}
+
+export function WorkflowBuilder({ wallet, onConnectWallet }: WorkflowBuilderProps) {
   const [steps, setSteps] = useState<{ serviceType: ServiceType }[]>([]);
   const [inputText, setInputText] = useState('');
   const [executing, setExecuting] = useState(false);
@@ -21,7 +30,6 @@ export function WorkflowBuilder() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // Load agents on mount - FIXED: using useEffect instead of useState
   useEffect(() => {
     api.getAgents()
       .then(res => {
@@ -61,42 +69,32 @@ export function WorkflowBuilder() {
       return;
     }
 
+    if (!wallet.address) {
+      onConnectWallet();
+      return;
+    }
+
     setExecuting(true);
     setResult(null);
     setError(null);
 
     try {
-      // Build workflow steps with input - first step gets the text, others chain
       const workflowSteps: WorkflowStep[] = steps.map((step, index) => ({
         serviceType: step.serviceType,
         input: index === 0 ? { text: inputText, url: inputText, prompt: inputText } : undefined,
       }));
 
-      // Get connected user wallet (same key as use-wallet.ts)
-      const userWallet = localStorage.getItem('roguecapital_wallet_address');
-
-      // Try to get user's existing channel to use for payments
       let channelId: string | undefined;
-      if (userWallet) {
-        try {
-          const channelsRes = await api.getWalletChannels(userWallet);
-          const channels = channelsRes.data?.data?.channels || [];
-          // Use first open channel if available
-          const openChannel = channels.find((ch: { status: string }) => ch.status === 'open');
-          if (openChannel) {
-            channelId = openChannel.channelId;
-            console.log('[Workflow] Using existing channel:', channelId);
-          }
-        } catch {
-          console.log('[Workflow] No existing channel, will create new one');
-        }
+      const openChannel = wallet.channels.find(ch => ch.status === 'open');
+      if (openChannel) {
+        channelId = openChannel.channelId;
       }
 
       const response = await api.executeWorkflow({
         orchestratorWallet: agents[0].wallet,
         steps: workflowSteps,
-        userWallet: userWallet || undefined,
-        channelId: channelId // Pass existing channel so payments go there
+        userWallet: wallet.address,
+        channelId: channelId
       });
 
       if (response.data.success) {
@@ -123,94 +121,120 @@ export function WorkflowBuilder() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-8">
+    <div className="max-w-6xl mx-auto space-y-8">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-2">Workflow Builder</h1>
-        <p className="text-gray-400">
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center">
+            <Workflow className="w-5 h-5 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold gradient-text">Workflow Builder</h1>
+        </div>
+        <p className="text-gray-400 ml-13">
           Build multi-agent workflows and execute them with real payments
         </p>
-        {agents.length > 0 && (
-          <p className="text-sm text-green-400 mt-2">
-            {agents.length} agents available for hire
-          </p>
-        )}
-      </div>
+
+      </motion.div>
 
       {/* Error Display */}
-      {error && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6 p-4 bg-red-900/30 border border-red-500 rounded-lg text-red-400"
-        >
-          {error}
-        </motion.div>
-      )}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="glass rounded-xl p-4 border border-red-500/30 flex items-center gap-3"
+          >
+            <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0" />
+            <span className="text-red-400">{error}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* PROMPT INPUT - Main input area at the top */}
-      <div className="mb-8 p-6 bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-500/50 rounded-xl">
-        <label className="block text-lg font-semibold text-white mb-3">
+      {/* Prompt Input */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="glass rounded-2xl p-6 border border-amber-500/20"
+      >
+        <label className="block text-lg font-semibold text-white mb-3 flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-amber-400" />
           Enter Your Prompt
         </label>
         <textarea
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           placeholder={getPlaceholder()}
-          className="w-full h-40 p-4 bg-gray-900 border-2 border-gray-600 rounded-lg text-white text-lg placeholder-gray-500 focus:border-blue-500 focus:outline-none resize-none"
+          className="w-full h-40 p-4 glass rounded-xl text-white text-lg placeholder-gray-500 focus:border-amber-500/50 focus:outline-none resize-none border border-white/10"
         />
-        <p className="text-sm text-gray-400 mt-2">
-          Type what you want to process, then add services below and click Execute
-        </p>
-      </div>
+
+      </motion.div>
 
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Left: Service Palette */}
-        <div>
-          <h2 className="text-2xl font-semibold mb-4">Available Services</h2>
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-yellow-500" />
+            Available Services
+          </h2>
           <div className="space-y-3">
             {Object.entries(SERVICE_CONFIGS).map(([key, config]) => (
               <motion.button
                 key={key}
-                whileHover={{ scale: 1.02 }}
+                whileHover={{ scale: 1.02, x: 4 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => addStep(key as ServiceType)}
-                className="w-full p-4 rounded-lg border-2 border-gray-600 bg-gray-800 hover:bg-gray-700 transition text-left flex items-center justify-between"
+                className="w-full glass rounded-xl p-4 hover-glow text-left flex items-center justify-between group"
               >
-                <div className="flex items-center gap-3">
-                  <span className="text-3xl">{config.emoji}</span>
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${config.gradient} flex items-center justify-center`}>
+                    <config.icon className="w-6 h-6 text-white" />
+                  </div>
                   <div>
-                    <div className="font-semibold">{config.name}</div>
+                    <div className="font-semibold text-white">{config.name}</div>
                     <div className="text-sm text-gray-400">
                       ${config.price.toFixed(2)} per task
                     </div>
                   </div>
                 </div>
-                <span className="text-2xl text-gray-500">+</span>
+                <span className="text-2xl text-gray-600 group-hover:text-yellow-400 transition-colors">+</span>
               </motion.button>
             ))}
           </div>
-        </div>
+        </motion.div>
 
         {/* Right: Workflow Canvas */}
-        <div>
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2 }}
+        >
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-semibold">Your Workflow</h2>
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              Your Workflow
+            </h2>
             {steps.length > 0 && (
-              <div className="text-sm text-gray-400">
+              <Badge className="bg-amber-500/10 border-amber-500/30 text-amber-400">
                 {steps.length} step{steps.length !== 1 ? 's' : ''} - ${totalCost.toFixed(2)} total
-              </div>
+              </Badge>
             )}
           </div>
 
           {/* Workflow Steps */}
-          <div className="bg-gray-800 rounded-lg p-6 min-h-[200px]">
+          <div className="glass rounded-2xl p-6 min-h-[200px]">
             {steps.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-gray-500 text-center">
-                <div>
-                  <div className="text-4xl mb-4">+</div>
-                  <p>Click a service on the left to add it</p>
-                </div>
+              <div className="h-full flex flex-col items-center justify-center text-gray-500 text-center py-8">
+                <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center text-3xl mb-4">+</div>
+                <p>Click a service on the left to add it</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -223,15 +247,17 @@ export function WorkflowBuilder() {
                         initial={{ opacity: 0, y: -20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, x: 100 }}
-                        className="bg-gray-700 rounded-lg p-4 flex items-center justify-between"
+                        className="glass rounded-xl p-4 flex items-center justify-between"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center font-bold">
+                          <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${config.gradient} flex items-center justify-center font-bold text-white`}>
                             {index + 1}
                           </div>
-                          <span className="text-2xl">{config.emoji}</span>
+                          <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${config.gradient} flex items-center justify-center`}>
+                            <config.icon className="w-4 h-4 text-white" />
+                          </div>
                           <div>
-                            <div className="font-semibold">{config.name}</div>
+                            <div className="font-semibold text-white">{config.name}</div>
                             <div className="text-sm text-gray-400">
                               ${config.price.toFixed(2)}
                             </div>
@@ -239,9 +265,9 @@ export function WorkflowBuilder() {
                         </div>
                         <button
                           onClick={() => removeStep(index)}
-                          className="text-red-400 hover:text-red-300 text-xl"
+                          className="w-8 h-8 rounded-lg bg-red-500/10 hover:bg-red-500/20 flex items-center justify-center text-red-400 transition-colors"
                         >
-                          X
+                          <X className="w-4 h-4" />
                         </button>
                       </motion.div>
                     );
@@ -249,8 +275,8 @@ export function WorkflowBuilder() {
                 </AnimatePresence>
 
                 {steps.length > 1 && (
-                  <div className="text-center text-gray-600 text-sm">
-                    Output flows from step 1 to step {steps.length}
+                  <div className="text-center text-gray-600 text-sm pt-2">
+                    Output flows from step 1 → step {steps.length}
                   </div>
                 )}
               </div>
@@ -259,186 +285,190 @@ export function WorkflowBuilder() {
 
           {/* Execute Button */}
           {steps.length > 0 && (
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+            <Button
               onClick={executeWorkflow}
               disabled={executing || !inputText.trim()}
-              className="w-full mt-6 py-4 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full mt-6 h-14 bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 hover:shadow-lg hover:shadow-amber-500/25 rounded-xl font-bold text-lg text-black disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               {executing ? (
-                <span className="flex items-center justify-center gap-2">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                <span className="flex items-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin" />
                   Executing Workflow...
                 </span>
               ) : (
-                'Execute Workflow'
+                <span className="flex items-center gap-2">
+                  <Play className="w-5 h-5 fill-current" />
+                  Execute Workflow
+                </span>
               )}
-            </motion.button>
+            </Button>
           )}
-        </div>
+        </motion.div>
       </div>
 
       {/* Results */}
-      {result && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mt-12 bg-green-900/20 border-2 border-green-500 rounded-xl p-8"
-        >
-          <h2 className="text-3xl font-bold mb-6 text-green-400">
-            Workflow Complete!
-          </h2>
+      <AnimatePresence>
+        {result && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="glass rounded-2xl p-8 border border-emerald-500/20"
+          >
+            <h2 className="text-2xl font-bold mb-6 text-emerald-400 flex items-center gap-3">
+              <CheckCircle2 className="w-7 h-7" />
+              Workflow Complete!
+            </h2>
 
-          <div className="grid md:grid-cols-3 gap-6 mb-8">
-            <div className="text-center">
-              <div className="text-4xl font-bold text-blue-400">
-                {result.steps.length}
-              </div>
-              <div className="text-sm text-gray-400">Steps Executed</div>
+            <div className="grid md:grid-cols-3 gap-6 mb-8">
+              {[
+                { label: 'Steps Executed', value: result.steps.length, color: 'from-blue-500 to-cyan-500' },
+                { label: 'Total Cost (USDC)', value: `$${result.totalCost.toFixed(4)}`, color: 'from-emerald-500 to-teal-500' },
+                { label: 'Total Time', value: `${(result.totalDuration / 1000).toFixed(1)}s`, color: 'from-orange-500 to-red-500' },
+              ].map((stat) => (
+                <div key={stat.label} className="glass rounded-xl p-5 text-center">
+                  <div className={`text-3xl font-bold bg-gradient-to-r ${stat.color} bg-clip-text text-transparent`}>
+                    {stat.value}
+                  </div>
+                  <div className="text-sm text-gray-400 mt-1">{stat.label}</div>
+                </div>
+              ))}
             </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-green-400">
-                ${result.totalCost.toFixed(4)}
-              </div>
-              <div className="text-sm text-gray-400">Total Cost (USDC)</div>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-purple-400">
-                {(result.totalDuration / 1000).toFixed(1)}s
-              </div>
-              <div className="text-sm text-gray-400">Total Time</div>
-            </div>
-          </div>
 
-          {/* Step Results */}
-          <div className="space-y-4">
-            <h3 className="text-xl font-semibold">Step Details</h3>
-            {result.steps.map((step, index) => (
-              <div key={index} className="bg-gray-800 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">
-                      {SERVICE_CONFIGS[step.serviceType as ServiceType]?.emoji || '?'}
-                    </span>
-                    <div>
-                      <div className="font-semibold">Step {step.step}</div>
-                      <div className="text-sm text-gray-400 capitalize">
-                        {step.serviceType.replace('_', ' ')}
+            {/* Step Results */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Step Details</h3>
+              {result.steps.map((step, index) => (
+                <div key={index} className="glass rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      {(() => {
+                        const config = SERVICE_CONFIGS[step.serviceType as ServiceType];
+                        const IconComponent = config?.icon;
+                        return IconComponent ? (
+                          <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${config.gradient} flex items-center justify-center`}>
+                            <IconComponent className="w-5 h-5 text-white" />
+                          </div>
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center text-white">?</div>
+                        );
+                      })()}
+                      <div>
+                        <div className="font-semibold">Step {step.step}</div>
+                        <div className="text-sm text-gray-400 capitalize">
+                          {step.serviceType.replace('_', ' ')}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold text-emerald-400">
+                        ${step.cost.toFixed(4)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {step.duration}ms
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-semibold text-green-400">
-                      ${step.cost.toFixed(4)}
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      {step.duration}ms
-                    </div>
+                  <div className="text-xs text-gray-500 mb-2 font-mono">
+                    Agent: {step.agentWallet.slice(0, 10)}...{step.agentWallet.slice(-8)}
                   </div>
+                  {step.output !== null && step.output !== undefined && (
+                    <div className="mt-2 glass rounded-lg p-3 text-sm text-gray-300 max-h-48 overflow-y-auto">
+                      {typeof step.output === 'object' ? JSON.stringify(step.output, null, 2) : String(step.output)}
+                    </div>
+                  )}
                 </div>
-                <div className="text-xs text-gray-500 mb-2">
-                  Agent: {step.agentWallet.slice(0, 10)}...{step.agentWallet.slice(-8)}
-                </div>
-                {/* Show output preview */}
-                {step.output && (
-                  <div className="mt-2 p-3 bg-gray-900 rounded text-sm text-gray-300 max-h-48 overflow-y-auto">
-                    {String(typeof step.output === 'string'
-                      ? step.output
-                      : JSON.stringify(step.output, undefined, 2))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
 
-          {/* Settlement Status */}
-          {result.settlement && (
-            <div className={`mt-6 p-4 rounded-lg border ${result.settlement.autoSettled
-              ? 'bg-green-900/20 border-green-500/50'
-              : result.settlement.status === 'open'
-                ? 'bg-blue-900/20 border-blue-500/50'
-                : 'bg-yellow-900/20 border-yellow-500/50'
-              }`}>
-              <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
-                {result.settlement.autoSettled ? '✅' : result.settlement.status === 'open' ? '📂' : '⏳'}
-                Payment Channel
-              </h3>
-              <div className="text-sm space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Status</span>
-                  <span className={
-                    result.settlement.status === 'settled_onchain' || result.settlement.status === 'settled_offchain'
-                      ? 'text-green-400'
-                      : result.settlement.status === 'open'
-                        ? 'text-blue-400'
-                        : 'text-yellow-400'
-                  }>
-                    {result.settlement.status === 'settled_onchain'
-                      ? 'Settled On-Chain'
-                      : result.settlement.status === 'settled_offchain'
-                        ? 'Settled Off-Chain'
-                        : result.settlement.status === 'open'
-                          ? 'Open (payments batched)'
-                          : result.settlement.status === 'pending'
-                            ? 'Pending Settlement'
-                            : result.settlement.status}
-                  </span>
-                </div>
-                {result.settlement.status === 'open' && (
-                  <div className="mt-2 p-2 bg-blue-900/30 rounded text-blue-300 text-xs">
-                    Gas Savings: All {result.steps.length} payments are batched in this channel.
-                    Settle when ready via your Wallet page to record balances on-chain with 1 transaction.
-                  </div>
-                )}
-                {result.settlement.txHash && (
+            {/* Settlement Status */}
+            {result.settlement && (
+              <div className={`mt-6 glass rounded-xl p-4 border ${result.settlement.autoSettled
+                ? 'border-emerald-500/30'
+                : result.settlement.status === 'open'
+                  ? 'border-blue-500/30'
+                  : 'border-yellow-500/30'
+                }`}>
+                <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                  {result.settlement.autoSettled ? '✅' : result.settlement.status === 'open' ? '📂' : '⏳'}
+                  Payment Channel
+                </h3>
+                <div className="text-sm space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-gray-400">Tx Hash</span>
-                    <a
-                      href={result.settlement.explorerUrl || `https://sepolia.basescan.org/tx/${result.settlement.txHash}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-400 hover:underline font-mono text-xs"
-                    >
-                      {result.settlement.txHash.slice(0, 16)}...
-                    </a>
+                    <span className="text-gray-400">Status</span>
+                    <span className={
+                      result.settlement.status === 'settled_onchain' || result.settlement.status === 'settled_offchain'
+                        ? 'text-emerald-400'
+                        : result.settlement.status === 'open'
+                          ? 'text-blue-400'
+                          : 'text-yellow-400'
+                    }>
+                      {result.settlement.status === 'settled_onchain'
+                        ? 'Settled On-Chain'
+                        : result.settlement.status === 'settled_offchain'
+                          ? 'Settled Off-Chain'
+                          : result.settlement.status === 'open'
+                            ? 'Open (payments batched)'
+                            : result.settlement.status === 'pending'
+                              ? 'Pending Settlement'
+                              : result.settlement.status}
+                    </span>
                   </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Channel</span>
-                  <span className="font-mono text-xs text-gray-300">
-                    {result.settlement.channelId.slice(0, 12)}...
-                  </span>
+                  {result.settlement.status === 'open' && (
+                    <div className="glass rounded-lg p-3 text-blue-300 text-xs">
+                      Gas Savings: All {result.steps.length} payments are batched in this channel.
+                      Settle when ready via your Wallet page.
+                    </div>
+                  )}
+                  {result.settlement.txHash && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Tx Hash</span>
+                      <a
+                        href={result.settlement.explorerUrl || `https://sepolia.basescan.org/tx/${result.settlement.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-400 hover:underline font-mono text-xs"
+                      >
+                        {result.settlement.txHash.slice(0, 16)}...
+                      </a>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Channel</span>
+                    <span className="font-mono text-xs text-gray-300">
+                      {result.settlement.channelId.slice(0, 12)}...
+                    </span>
+                  </div>
+                  {result.settlement.error && (
+                    <div className="text-red-400 text-xs mt-1">
+                      Note: {result.settlement.error}
+                    </div>
+                  )}
                 </div>
-                {result.settlement.error && (
-                  <div className="text-red-400 text-xs mt-1">
-                    Note: {result.settlement.error}
-                  </div>
-                )}
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Revenue Distribution */}
-          {result.revenueDistribution && (
-            <div className="mt-6 p-4 bg-gray-800 rounded-lg">
-              <h3 className="text-lg font-semibold mb-3">Revenue Distribution</h3>
-              <div className="space-y-2">
-                {result.revenueDistribution.participants.map((p, i) => (
-                  <div key={i} className="flex justify-between text-sm">
-                    <span className="text-gray-400">
-                      {p.wallet.slice(0, 10)}...
-                    </span>
-                    <span className="text-green-400">
-                      ${p.payment.toFixed(4)} ({(p.share * 100).toFixed(1)}%)
-                    </span>
-                  </div>
-                ))}
+            {/* Revenue Distribution */}
+            {result.revenueDistribution && (
+              <div className="mt-6 glass rounded-xl p-4">
+                <h3 className="text-lg font-semibold mb-3">Revenue Distribution</h3>
+                <div className="space-y-2">
+                  {result.revenueDistribution.participants.map((p, i) => (
+                    <div key={i} className="flex justify-between text-sm">
+                      <span className="text-gray-400 font-mono">
+                        {p.wallet.slice(0, 10)}...
+                      </span>
+                      <span className="text-emerald-400">
+                        ${p.payment.toFixed(4)} ({(p.share * 100).toFixed(1)}%)
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </motion.div>
-      )}
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

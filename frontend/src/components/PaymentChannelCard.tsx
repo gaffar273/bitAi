@@ -115,7 +115,7 @@ export function PaymentChannelCard({
         return (
             <Card className="bg-gray-900/50 border-gray-700">
                 <CardContent className="flex items-center justify-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin text-purple-400" />
+                    <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
                     <span className="ml-2 text-gray-400">Loading channel...</span>
                 </CardContent>
             </Card>
@@ -210,7 +210,7 @@ export function PaymentChannelCard({
                                             {tx.toWallet?.slice(0, 6)}...
                                         </span>
                                     </div>
-                                    <span className="text-purple-400 font-medium">
+                                    <span className="text-amber-400 font-medium">
                                         {fromWei(tx.amount).toFixed(6)} ETH
                                     </span>
                                 </div>
@@ -245,7 +245,7 @@ export function PaymentChannelCard({
                         {onSettle && (
                             <Button
                                 variant="outline"
-                                className="flex-1 border-purple-500/30 hover:bg-purple-500/10"
+                                className="flex-1 border-amber-500/30 hover:bg-amber-500/10"
                                 onClick={handleSettle}
                                 disabled={settling}
                             >
@@ -259,7 +259,7 @@ export function PaymentChannelCard({
                         )}
                         {onSettleOnChain && (
                             <Button
-                                className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                                className="flex-1 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-black font-semibold"
                                 onClick={handleSettleOnChain}
                                 disabled={settling}
                             >

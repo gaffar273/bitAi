@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Search, Filter } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Search, Filter, Zap } from 'lucide-react';
 import { api } from '../services/api';
 import type { Agent } from '../types';
 import { AgentCard } from './AgentCard';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -25,7 +25,6 @@ export function AgentList() {
     const loadAgents = async () => {
       setLoading(true);
       try {
-        // Fetch all agents first, then filter client-side for better search UX
         const response = await api.getAgents();
         if (isMounted) {
           setAgents(response.data.data);
@@ -61,146 +60,182 @@ export function AgentList() {
   ];
 
   const filteredAgents = agents.filter(agent => {
-    // 1. Service Type Filter
     const matchesType = filter === 'all'
       ? true
       : agent.services.some(s => s.type === filter);
 
-    // 2. Search Query Filter (Name/Type, Wallet, ID, Description)
     const normalizedQuery = searchQuery.toLowerCase();
     const matchesSearch = searchQuery === ''
       ? true
       : agent.wallet.toLowerCase().includes(normalizedQuery) ||
       agent.id.toLowerCase().includes(normalizedQuery) ||
-      // Search by "Name" (Service Type)
       agent.services.some(s => s.type.replace('_', ' ').toLowerCase().includes(normalizedQuery)) ||
-      // Search by Description
       agent.services.some(s => s.description.toLowerCase().includes(normalizedQuery));
 
     return matchesType && matchesSearch;
   });
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight mb-2">Agent Marketplace</h1>
-          <p className="text-gray-400">Browse autonomous AI agents available for hire</p>
-        </div>
-      </div>
+  // Stagger animation for cards
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.08
+      }
+    }
+  };
 
-      {/* Search & Filter Bar */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search by name, wallet or capability..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 bg-gray-900/50 border-gray-800"
-          />
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20, scale: 0.95 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      transition: { duration: 0.4, ease: "easeOut" }
+    }
+  };
+
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="flex flex-col md:flex-row md:items-end justify-between gap-4"
+      >
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center">
+              <Zap className="w-5 h-5 text-black" />
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              <span className="text-white">Agent</span>
+              <span className="text-yellow-400 ml-2">Marketplace</span>
+            </h1>
+          </div>
+          <p className="text-gray-400 ml-13">Discover and hire autonomous AI agents for any task</p>
         </div>
-        <div className="w-full sm:w-[240px]">
-          <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-full bg-gray-900/50 border-gray-800">
-              <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-gray-400" />
-                <SelectValue placeholder="Category" />
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              {serviceTypes.map(type => (
-                <SelectItem key={type.value} value={type.value}>
-                  {type.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      </motion.div>
+
+      {/* Search & Filter Bar - Glass Panel */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.1 }}
+        className="glass rounded-2xl p-4"
+      >
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search by name, wallet or capability..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-11 h-12 bg-white/5 border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:border-amber-500/50"
+            />
+          </div>
+          <div className="w-full sm:w-[240px]">
+            <Select value={filter} onValueChange={setFilter}>
+              <SelectTrigger className="h-12 bg-white/5 border-white/10 rounded-xl text-white">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-gray-400" />
+                  <SelectValue placeholder="Category" />
+                </div>
+              </SelectTrigger>
+              <SelectContent className="glass-strong border-white/10">
+                {serviceTypes.map(type => (
+                  <SelectItem key={type.value} value={type.value} className="text-white hover:bg-white/10">
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Loading State */}
       {loading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3, 4, 5, 6].map(i => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-gray-700 rounded-lg"></div>
-                  <div className="flex-1">
-                    <div className="h-4 bg-gray-700 rounded mb-2"></div>
-                    <div className="h-3 bg-gray-700 rounded w-2/3"></div>
-                  </div>
+            <div key={i} className="glass rounded-2xl p-6 animate-pulse">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-14 h-14 bg-white/10 rounded-xl" />
+                <div className="flex-1">
+                  <div className="h-5 bg-white/10 rounded-lg mb-2 w-2/3" />
+                  <div className="h-4 bg-white/10 rounded-lg w-1/2" />
                 </div>
-                <div className="h-8 bg-gray-700 rounded mb-2"></div>
-                <div className="h-4 bg-gray-700 rounded w-1/2"></div>
-              </CardContent>
-            </Card>
+              </div>
+              <div className="h-10 bg-white/10 rounded-lg mb-3" />
+              <div className="h-8 bg-white/10 rounded-lg w-1/3" />
+            </div>
           ))}
         </div>
       )}
 
       {/* Agent Grid */}
       {!loading && filteredAgents.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+        >
           {filteredAgents.map((agent) => (
-            <AgentCard key={agent.wallet} agent={agent} />
+            <motion.div key={agent.wallet} variants={itemVariants}>
+              <AgentCard agent={agent} />
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
 
       {/* Empty State */}
       {!loading && filteredAgents.length === 0 && (
-        <Card className="max-w-md mx-auto">
-          <CardContent className="p-12 text-center">
-            <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Search className="w-8 h-8 text-gray-400" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">No Agents Found</h3>
-            <p className="text-gray-400 text-sm">
-              {filter === 'all'
-                ? 'No agents have been registered yet.'
-                : `No ${filter.replace('_', ' ')} agents available.`}
-            </p>
-          </CardContent>
-        </Card>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="glass rounded-2xl p-16 text-center max-w-md mx-auto"
+        >
+          <div className="w-20 h-20 bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Search className="w-10 h-10 text-yellow-400" />
+          </div>
+          <h3 className="text-xl font-semibold mb-2">No Agents Found</h3>
+          <p className="text-gray-400 text-sm">
+            {filter === 'all'
+              ? 'No agents have been registered yet.'
+              : `No ${filter.replace('_', ' ')} agents available.`}
+          </p>
+        </motion.div>
       )}
 
       {/* Stats Footer */}
       {!loading && agents.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-          <Card>
-            <CardContent className="p-6 text-center">
-              <div className="text-4xl font-bold text-blue-400 mb-2">
-                {agents.length}
-              </div>
-              <div className="text-sm text-gray-400">
-                Total Agents
-              </div>
-            </CardContent>
-          </Card>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="grid grid-cols-1 md:grid-cols-2 gap-6"
+        >
+          <div className="glass rounded-2xl p-6 text-center hover-glow">
+            <div className="text-4xl font-bold text-yellow-400 mb-2">
+              {agents.length}
+            </div>
+            <div className="text-sm text-gray-400 uppercase tracking-wider">
+              Total Agents
+            </div>
+          </div>
 
-          <Card>
-            <CardContent className="p-6 text-center">
-              <div className="text-4xl font-bold text-green-400 mb-2">
-                {filteredAgents.length}
-              </div>
-              <div className="text-sm text-gray-400">Visible Agents</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6 text-center">
-              <div className="text-4xl font-bold text-purple-400 mb-2">
-                {agents.length > 0
-                  ? Math.round(agents.reduce((sum, a) => sum + a.reputation, 0) / agents.length / 200)
-                  : 0}/5
-              </div>
-              <div className="text-sm text-gray-400">Average Rating</div>
-            </CardContent>
-          </Card>
-        </div>
+          <div className="glass rounded-2xl p-6 text-center hover-glow">
+            <div className="text-4xl font-bold text-emerald-400 mb-2">
+              {filteredAgents.length}
+            </div>
+            <div className="text-sm text-gray-400 uppercase tracking-wider">
+              Matching Results
+            </div>
+          </div>
+        </motion.div>
       )}
     </div>
   );

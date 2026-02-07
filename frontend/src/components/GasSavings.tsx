@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Zap, Flame, Timer, TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Zap, Flame, Timer, TrendingUp, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
 import { api } from '../services/api';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
 interface SavingsData {
@@ -19,7 +18,7 @@ export function GasSavings() {
 
   useEffect(() => {
     loadSavings();
-    const interval = setInterval(loadSavings, 3000); // Update every 3s
+    const interval = setInterval(loadSavings, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -35,74 +34,91 @@ export function GasSavings() {
 
   if (loading || !savings) {
     return (
-      <div className="flex flex-col items-center justify-center p-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+      <div className="flex flex-col items-center justify-center p-16">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-yellow-500/20 to-orange-500/20 flex items-center justify-center mb-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-yellow-500 border-t-transparent" />
+        </div>
         <p className="text-gray-400">Loading savings data...</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-4 space-y-8">
+    <div className="max-w-6xl mx-auto space-y-10">
       {/* Hero Section */}
-      <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold mb-3 flex items-center justify-center gap-3">
-          <TrendingUp className="w-10 h-10 text-green-500" />
-          Gas Savings Analysis
-        </h1>
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center"
+      >
+        <div className="flex items-center justify-center gap-3 mb-4">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center">
+            <TrendingUp className="w-6 h-6 text-black" />
+          </div>
+          <h1 className="text-4xl font-bold">
+            <span className="text-white">Gas Savings</span>
+            <span className="text-yellow-400 ml-2">Analysis</span>
+          </h1>
+        </div>
         <p className="text-gray-400 text-lg">
           Real-time comparison: Yellow Network vs Traditional L1 Blockchain
         </p>
-      </div>
+      </motion.div>
 
       {/* Main Comparison Cards */}
       <div className="grid md:grid-cols-2 gap-8">
         {/* Without Yellow */}
         <motion.div
-          initial={{ opacity: 0, x: -20 }}
+          initial={{ opacity: 0, x: -30 }}
           animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.1 }}
+          className="glass rounded-2xl p-8 border-2 border-red-500/20 relative overflow-hidden"
         >
-          <Card className="border-red-500/30 bg-red-950/10">
-            <CardHeader>
-              <div className="flex items-center gap-2 mb-2">
-                <AlertCircle className="w-6 h-6 text-red-500" />
-                <CardTitle className="text-red-400">Standard L1 Transaction</CardTitle>
+          <div className="absolute top-0 right-0 w-48 h-48 bg-red-500/10 rounded-full blur-3xl -mr-24 -mt-24" />
+          <div className="relative">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center">
+                <AlertCircle className="w-5 h-5 text-white" />
               </div>
-              <CardDescription>Traditional On-Chain Gas Fees</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-5xl font-bold text-red-500 mb-4">
-                ${savings.onChainCostUsd.toFixed(2)}
+              <div>
+                <h3 className="text-xl font-semibold text-red-400">Standard L1 Transaction</h3>
+                <p className="text-sm text-gray-500">Traditional On-Chain Gas Fees</p>
               </div>
-              <div className="text-sm text-gray-400">
-                {savings.totalTransactions} transactions × ~$5.00 avg gas
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+            <div className="text-6xl font-bold text-red-400 mb-3">
+              ${savings.onChainCostUsd.toFixed(2)}
+            </div>
+            <div className="text-gray-500">
+              {savings.totalTransactions} transactions × ~$5.00 avg gas
+            </div>
+          </div>
         </motion.div>
 
         {/* With Yellow */}
         <motion.div
-          initial={{ opacity: 0, x: 20 }}
+          initial={{ opacity: 0, x: 30 }}
           animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2 }}
+          className="glass rounded-2xl p-8 border-2 border-emerald-500/20 relative overflow-hidden"
         >
-          <Card className="border-green-500/30 bg-green-950/10 h-full">
-            <CardHeader>
-              <div className="flex items-center gap-2 mb-2">
-                <CheckCircle2 className="w-6 h-6 text-green-500" />
-                <CardTitle className="text-green-400">Yellow State Channels</CardTitle>
+          <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl -mr-24 -mt-24" />
+          <div className="relative">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
+                <CheckCircle2 className="w-5 h-5 text-white" />
               </div>
-              <CardDescription>Off-chain High Frequency Trading</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-5xl font-bold text-green-500 mb-4">
-                ${savings.yellowCostUsd.toFixed(2)}
+              <div>
+                <h3 className="text-xl font-semibold text-emerald-400">Yellow State Channels</h3>
+                <p className="text-sm text-gray-500">Off-chain High Frequency Trading</p>
               </div>
-              <div className="text-sm text-gray-400">
-                Open Channel + {savings.totalTransactions} txs + Settlement
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+            <div className="text-6xl font-bold text-emerald-400 mb-3">
+              ${savings.yellowCostUsd.toFixed(2)}
+            </div>
+            <div className="text-gray-500">
+              Open Channel + {savings.totalTransactions} txs + Settlement
+            </div>
+          </div>
         </motion.div>
       </div>
 
@@ -110,60 +126,73 @@ export function GasSavings() {
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        transition={{ delay: 0.2 }}
+        transition={{ delay: 0.3 }}
+        className="relative"
       >
-        <Card className="bg-gradient-to-br from-blue-950/50 to-purple-950/50 border-blue-500/30 overflow-hidden relative">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -mr-32 -mt-32" />
+        <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/10 via-amber-500/10 to-orange-500/10 rounded-3xl blur-xl" />
+        <div className="glass rounded-3xl p-12 text-center relative overflow-hidden border border-yellow-500/20">
+          {/* Decorative Elements */}
+          <div className="absolute top-0 left-1/4 w-64 h-64 bg-yellow-500/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 right-1/4 w-48 h-48 bg-orange-500/10 rounded-full blur-3xl" />
 
-          <CardContent className="p-12 text-center relative z-10">
-            <h2 className="text-2xl font-semibold mb-6 flex items-center justify-center gap-2">
-              Total Capital Preserved
-            </h2>
-            <div className="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 via-blue-400 to-purple-400 mb-6 font-mono">
-              ${savings.savingsUsd.toFixed(2)}
+          <div className="relative z-10">
+            <div className="flex items-center justify-center gap-2 mb-6">
+              <Sparkles className="w-6 h-6 text-yellow-400" />
+              <h2 className="text-2xl font-semibold">Total Capital Preserved</h2>
+              <Sparkles className="w-6 h-6 text-yellow-400" />
             </div>
-            <Badge variant="outline" className="text-xl py-1 px-4 border-yellow-500/50 text-yellow-400 bg-yellow-500/10 mb-4">
+
+            <motion.div
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.4, type: "spring", bounce: 0.4 }}
+              className="text-8xl font-black bg-gradient-to-r from-yellow-400 via-amber-400 to-orange-400 bg-clip-text text-transparent mb-6 font-mono"
+            >
+              ${savings.savingsUsd.toFixed(2)}
+            </motion.div>
+
+            <Badge
+              className="text-lg py-2 px-6 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-yellow-500/30 text-yellow-400"
+            >
               {savings.savingsPercent.toFixed(2)}% Efficiency Gain
             </Badge>
-            <p className="text-gray-400 max-w-lg mx-auto mt-4">
+
+            <p className="text-gray-400 max-w-xl mx-auto mt-6 leading-relaxed">
               By utilizing state channels, we eliminate gas costs for intermediate transactions, making high-frequency agent interactions economically viable.
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </motion.div>
 
       {/* Stats Grid */}
-      <div className="grid md:grid-cols-3 gap-6">
-        <Card>
-          <CardContent className="p-6 flex flex-col items-center">
-            <Zap className="w-8 h-8 text-blue-400 mb-3" />
-            <div className="text-3xl font-bold text-white mb-1">
-              {savings.totalTransactions}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="grid md:grid-cols-3 gap-6"
+      >
+        {[
+          { icon: Zap, label: 'Total Txs', value: savings.totalTransactions, color: 'from-yellow-500 to-amber-500' },
+          { icon: Flame, label: 'Saved / Tx', value: `$${(savings.savingsUsd / (savings.totalTransactions || 1)).toFixed(2)}`, color: 'from-orange-500 to-red-500' },
+          { icon: Timer, label: 'Latency', value: '<1s', color: 'from-emerald-500 to-teal-500' },
+        ].map((stat, index) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 + index * 0.1 }}
+            className="glass rounded-2xl p-8 text-center hover-glow"
+          >
+            <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center mx-auto mb-4`}>
+              <stat.icon className="w-7 h-7 text-black" />
             </div>
-            <div className="text-xs text-gray-400 uppercase tracking-wider">Total Txs</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6 flex flex-col items-center">
-            <Flame className="w-8 h-8 text-orange-400 mb-3" />
-            <div className="text-3xl font-bold text-white mb-1">
-              ${(savings.savingsUsd / (savings.totalTransactions || 1)).toFixed(2)}
+            <div className="text-4xl font-bold text-white mb-2">
+              {stat.value}
             </div>
-            <div className="text-xs text-gray-400 uppercase tracking-wider">Saved / Tx</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6 flex flex-col items-center">
-            <Timer className="w-8 h-8 text-green-400 mb-3" />
-            <div className="text-3xl font-bold text-white mb-1">
-              &lt;1s
-            </div>
-            <div className="text-xs text-gray-400 uppercase tracking-wider">Latency</div>
-          </CardContent>
-        </Card>
-      </div>
+            <div className="text-sm text-gray-400 uppercase tracking-wider">{stat.label}</div>
+          </motion.div>
+        ))}
+      </motion.div>
     </div>
   );
 }
